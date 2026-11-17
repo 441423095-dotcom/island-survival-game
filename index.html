@@ -126,6 +126,10 @@
     right: 0;
     top: 0;
     padding: calc(env(safe-area-inset-top, 0px) + 14px) calc(env(safe-area-inset-right, 0px) + 14px) 0 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
     pointer-events: none;
   }
 
@@ -163,6 +167,31 @@
     background: #7cc26b;
     transition: background 0.35s linear;
   }
+
+  /* 饥饿条下面的音效开关 */
+  #soundBtn {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid #4a3a2a;
+    background: rgba(255, 252, 240, 0.94);
+    box-shadow: 0 3px 0 rgba(74, 58, 42, 0.18);
+    color: #4a3a2a;
+    pointer-events: auto;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  #soundBtn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(74, 58, 42, 0.18); }
+  #soundBtn svg { width: 19px; height: 19px; display: block; }
+  #soundBtn .ico-off { display: none; }
+  #soundBtn.off { opacity: 0.62; }
+  #soundBtn.off .ico-on { display: none; }
+  #soundBtn.off .ico-off { display: block; }
 
   /* ---------- 左下角：虚拟摇杆 ---------- */
   #joystick {
@@ -425,6 +454,28 @@
     color: #a09280;
   }
 
+  /* 制作面板底部的小字按钮：重新开始 */
+  .sheet-reset {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    display: block;
+    margin: 14px auto 0;
+    padding: 7px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #a09280;
+    background: transparent;
+    border: 2px solid #e3d9c4;
+    border-radius: 10px;
+  }
+  .sheet-reset.armed {
+    color: #c2452f;
+    border-color: #e0a08c;
+    background: #fdeee8;
+  }
+
   /* ---------- 游戏结束遮罩 ---------- */
   #overlay {
     position: absolute;
@@ -536,6 +587,21 @@
       <span class="hunger-label">饥饿</span>
       <div class="bar"><div id="hungerFill"></div></div>
     </div>
+    <!-- 音效开关：默认开启，关掉后所有声音静音 -->
+    <button id="soundBtn" aria-label="关闭音效">
+      <svg class="ico-on" viewBox="0 0 24 24" fill="none" stroke="#4a3a2a"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9.5 h3.5 L12 5.5 v13 L7.5 14.5 H4 z" fill="#f7e6c4"/>
+        <path d="M15.5 8.5 q2.6 3.5 0 7"/>
+        <path d="M18.2 6 q4 6 0 12"/>
+      </svg>
+      <svg class="ico-off" viewBox="0 0 24 24" fill="none" stroke="#4a3a2a"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9.5 h3.5 L12 5.5 v13 L7.5 14.5 H4 z" fill="#efe6d4"/>
+        <path d="M16 9.5 L21 14.5"/>
+        <path d="M21 9.5 L16 14.5"/>
+      </svg>
+    </button>
   </div>
 
   <!-- 钓鱼进度条 -->
@@ -598,6 +664,7 @@
       </div>
 
       <p class="sheet-tip">工作台建好后，才能在岛右侧的空地上建造农田。</p>
+      <button class="sheet-reset" id="sheetResetBtn">重新开始</button>
     </div>
   </div>
 
@@ -612,6 +679,13 @@
 
   <div id="hint">拖动左下角摇杆移动 · 碰到树木石头自动采集</div>
 </div>
+<script type="module">
+  // 触感反馈：这个文件由 App 生成，只有在 App 里才有 Taptic 引擎
+  // 普通浏览器里拿不到，安静地跳过，不影响游戏
+  import('./src/haptics.js')
+    .then(function (m) { window.__haptic = m.haptic; })
+    .catch(function () { /* 没有触感桥就算了 */ });
+</script>
 
 <script>
 (() => {
@@ -654,6 +728,8 @@
 
   const overlayEl  = document.getElementById('overlay');
   const restartBtn = document.getElementById('restartBtn');
+  const soundBtn   = document.getElementById('soundBtn');
+  const sheetResetBtn = document.getElementById('sheetResetBtn');
 
   // ==================================================================
   // 1. 常量（配色 + 数值平衡）
@@ -730,7 +806,7 @@
 
     joy: { nx: 0, ny: 0, mag: 0 },   // 摇杆输出：方向 × 力度
 
-    contact: { target: null, t: 0 }, // 当前贴着的资源 + 已接触时长
+    contact: { target: null, t: 0, beat: 0 }, // 贴着的资源 + 已接触时长 + 已响过的凿击次数
 
     fishing: { active: false, t: 0 },// 钓鱼进度
 
@@ -744,6 +820,10 @@
     trees: [],           // 树：{ kind, fx, fy, x, y, r, alive, canopy }
     rocks: [],           // 石头：{ kind, fx, fy, x, y, r, alive, pts }
     floats: [],          // 采集时飘起来的 "+1" 文字
+
+    heartT: 0,           // 低饥饿时心跳的倒计时
+    nextBird: 7,         // 下一声鸟叫的倒计时
+    saveT: 0,            // 自动存档的倒计时
 
     actionKey: ''        // 互动按钮当前状态缓存（避免每帧刷 DOM）
   };
@@ -1661,15 +1741,20 @@
     ent.alive = false;
     state.contact.target = null;
     state.contact.t = 0;
+    state.contact.beat = 0;
 
     if (ent.kind === 'tree') {
       state.wood += 1;
       showToast('木材 +1');
       addFloat(ent.x, ent.y - ent.r * 1.5, '+1');
+      sfx('chop');
+      buzz('chop');
     } else {
       state.stone += 1;
       showToast('石头 +1');
       addFloat(ent.x, ent.y - ent.r * 1.2, '+1');
+      sfx('mine');
+      buzz('mine');
     }
 
     syncResourceUI();
@@ -1707,11 +1792,21 @@
     if (target !== state.contact.target) {
       state.contact.target = target;
       state.contact.t = 0;
+      state.contact.beat = 0;
     }
     if (!target) return;
 
     state.contact.t += dt;
     const need = state.hasAxe ? CONTACT_TIME_AXE : CONTACT_TIME_BARE;
+
+    // 采集过程中按节奏响几下轻轻的凿击声，让人知道"正在采"
+    const beats = 3;
+    const beat = Math.floor((state.contact.t / need) * beats);
+    if (beat > state.contact.beat && beat < beats) {
+      state.contact.beat = beat;
+      sfx('tap');
+    }
+
     if (state.contact.t >= need) harvest(target);
   }
 
@@ -1754,8 +1849,11 @@
     state.fishing.t = 0;
     state.contact.target = null;
     state.contact.t = 0;
+    state.contact.beat = 0;
     fishPanelEl.classList.add('show');
     fishFillEl.style.width = '0%';
+    sfx('cast');        // 甩竿
+    sfx('plop');        // 浮漂入水（内部带一点延迟）
     syncActionUI();
   }
 
@@ -1770,6 +1868,8 @@
 
     showToast('鱼 +1 · 饥饿 +' + FISH_HUNGER);
     addFloat(state.player.x, state.player.y - 46, '+1');
+    sfx('catch');       // 上钩的清脆提示音
+    buzz('catch');
 
     syncResourceUI();
     syncHungerUI();
@@ -1793,6 +1893,8 @@
       state.stone -= STONE_COST_FARM;
       f.built = true;
       showToast('农田建好了');
+      sfx('build');
+      buzz('craft');
       syncResourceUI();
       syncCraftMenu();
       return;
@@ -1804,6 +1906,7 @@
       f.growth = 0;
       f.ready = false;
       showToast('已播种 · ' + FARM_GROW_TIME + ' 秒后成熟');
+      sfx('plant');
       return;
     }
 
@@ -1815,6 +1918,8 @@
       state.food += 1;
       showToast('食物 +1');
       addFloat(world.farm.x, world.farm.y - 30, '+1');
+      sfx('harvest');
+      buzz('chop');
       syncResourceUI();
       return;
     }
@@ -1845,6 +1950,7 @@
       showToast('吃了一份食物 · 饥饿 +' + EAT_FOOD_HUNGER);
     }
 
+    sfx('eat');
     syncResourceUI();
     syncHungerUI();
   }
@@ -1861,6 +1967,9 @@
     state.player.moving = false;
     joyReset();
     closeCraftMenu();
+
+    clearSave();        // 这局结束了，下次打开是全新的一局
+    sfx('over');
 
     overlayEl.classList.add('show');
     syncActionUI();
@@ -1888,6 +1997,19 @@
       return;
     }
 
+    // 1.5) 声音氛围：低饥饿的心跳、偶尔的鸟叫、定时存档
+    updateHeartbeat(dt);
+    state.nextBird -= dt;
+    if (state.nextBird <= 0) {
+      state.nextBird = 7 + Math.random() * 9;
+      sfx('bird');
+    }
+    state.saveT += dt;
+    if (state.saveT >= 4) {
+      state.saveT = 0;
+      saveGame();
+    }
+
     // 2) 钓鱼进度
     if (state.fishing.active) {
       state.fishing.t += dt;
@@ -1903,6 +2025,7 @@
       if (farm.growth >= 1) {
         farm.ready = true;
         showToast('作物成熟了');
+        sfx('mature');
       }
     }
 
@@ -2001,6 +2124,8 @@
       state.wood -= WOOD_COST_AXE;
       state.hasAxe = true;
       showToast('石斧做好了 · 采集更快');
+      sfx('build');
+      buzz('craft');
     } else {
       if (state.hasBench) return;
       if (state.wood < WOOD_COST_BENCH || state.stone < STONE_COST_BENCH) {
@@ -2011,6 +2136,8 @@
       state.stone -= STONE_COST_BENCH;
       state.hasBench = true;
       showToast('工作台建好了 · 可以建农田了');
+      sfx('build');
+      buzz('craft');
     }
 
     syncResourceUI();
@@ -2117,15 +2244,55 @@
   foodChipEl.addEventListener('click', () => eat('food'));
 
   craftOpenBtn.addEventListener('click', () => {
-    if (craftMenuEl.classList.contains('show')) closeCraftMenu();
-    else openCraftMenu();
+    if (craftMenuEl.classList.contains('show')) {
+      sfx('close');
+      closeCraftMenu();
+    } else {
+      sfx('open');
+      openCraftMenu();
+    }
   });
-  craftCloseEl.addEventListener('click', closeCraftMenu);
+  craftCloseEl.addEventListener('click', () => {
+    sfx('close');
+    closeCraftMenu();
+  });
   craftMenuEl.addEventListener('click', e => {
     if (e.target === craftMenuEl) closeCraftMenu();   // 点空白处关闭
   });
   craftAxeBtn.addEventListener('click', () => craft('axe'));
   craftBenchBtn.addEventListener('click', () => craft('bench'));
+
+  // 音效开关
+  soundBtn.addEventListener('click', toggleSound);
+
+  // 制作面板底部的"重新开始"：第一次点变成确认，再点一次才真的重开
+  let resetArmed = false;
+  let resetTimer = null;
+
+  function disarmReset() {
+    resetArmed = false;
+    sheetResetBtn.textContent = '重新开始';
+    sheetResetBtn.classList.remove('armed');
+    if (resetTimer) {
+      clearTimeout(resetTimer);
+      resetTimer = null;
+    }
+  }
+
+  sheetResetBtn.addEventListener('click', () => {
+    sfx('click');
+    if (!resetArmed) {
+      resetArmed = true;
+      sheetResetBtn.textContent = '再点一次确认重开';
+      sheetResetBtn.classList.add('armed');
+      resetTimer = setTimeout(disarmReset, 3000);
+      return;
+    }
+    disarmReset();
+    closeCraftMenu();
+    restart();
+    showToast('已重新开始');
+  });
 
   restartBtn.addEventListener('click', restart);
 
@@ -2154,6 +2321,7 @@
     state.floats = [];
     state.contact.target = null;
     state.contact.t = 0;
+    state.contact.beat = 0;
     state.fishing.active = false;
     state.fishing.t = 0;
     state.farm.built = false;
@@ -2161,6 +2329,9 @@
     state.farm.growth = 0;
     state.farm.ready = false;
     state.actionKey = '';
+    state.heartT = 0;
+    state.nextBird = 7;
+    state.saveT = 0;
 
     buildEntities();     // 树和石头全部长回来
     layoutWorld();
@@ -2170,14 +2341,449 @@
     fishPanelEl.classList.remove('show');
     actionBtn.classList.remove('show');
     closeCraftMenu();
+    clearSave();         // 旧存档作废，紧接着写一份新的
     syncResourceUI();
     syncHungerUI();
     syncCraftMenu();
     syncActionUI();
+    saveGame();
   }
 
   // ==================================================================
-  // 11. 启动
+  // 11. 音效（全部用 Web Audio 实时合成，不加载任何音频文件）
+  // 想改音色就改 sfx() 里对应的那一条
+  // ==================================================================
+  const SOUND_KEY = 'island-survival-sound';
+
+  const Sound = {
+    ctx: null,      // AudioContext，第一次触摸屏幕时才创建（iOS 的硬性要求）
+    master: null,   // 总音量节点
+    enabled: true,  // 玩家是否打开音效
+    ambient: null   // 海浪的环境音
+  };
+
+  /** 读取音效开关（上次的选择会记住） */
+  function loadSoundPref() {
+    try {
+      if (localStorage.getItem(SOUND_KEY) === '0') Sound.enabled = false;
+    } catch (e) {
+      // 无痕模式下读不到存储，用默认值就行
+    }
+  }
+
+  function saveSoundPref() {
+    try {
+      localStorage.setItem(SOUND_KEY, Sound.enabled ? '1' : '0');
+    } catch (e) { /* 忽略 */ }
+  }
+
+  /**
+   * 拿到 AudioContext，需要时恢复播放
+   * iOS 要求音频必须在"用户手势"里创建或恢复，所以第一次摸屏幕才会真正生效
+   */
+  function audioCtx() {
+    if (!Sound.enabled) return null;
+
+    if (!Sound.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try {
+        Sound.ctx = new AC();
+      } catch (e) {
+        return null;
+      }
+      Sound.master = Sound.ctx.createGain();
+      Sound.master.gain.value = 0.85;
+      Sound.master.connect(Sound.ctx.destination);
+      startAmbient();
+    }
+
+    if (Sound.ctx.state === 'suspended') {
+      const p = Sound.ctx.resume();
+      if (p && p.catch) p.catch(() => {});
+    }
+    return Sound.ctx;
+  }
+
+  /** 第一次触摸屏幕时把音频"解锁" */
+  function unlockAudio() {
+    if (!Sound.enabled) return;
+    audioCtx();
+  }
+
+  /**
+   * 播放一个音
+   * o: { freq 起始频率, to 结束频率, dur 时长, type 波形, gain 音量, delay 延迟, attack 起音 }
+   */
+  function playTone(o) {
+    const ac = audioCtx();
+    if (!ac) return;
+
+    const t0 = ac.currentTime + (o.delay || 0);
+    const dur = o.dur || 0.2;
+    const peak = o.gain == null ? 0.2 : o.gain;
+
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(o.freq, t0);
+    if (o.to) osc.frequency.exponentialRampToValueAtTime(Math.max(30, o.to), t0 + dur);
+
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + Math.min(dur * 0.4, o.attack || 0.01));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+    osc.connect(g);
+    g.connect(Sound.master);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.03);
+  }
+
+  /**
+   * 播放一段噪声，木头、石头、水声、咀嚼声都是它变形出来的
+   * o: { freq 起始滤波频率, to 结束频率, dur 时长, gain 音量, q 谐振, filter 滤波类型, delay 延迟 }
+   */
+  function playNoise(o) {
+    const ac = audioCtx();
+    if (!ac) return;
+
+    const t0 = ac.currentTime + (o.delay || 0);
+    const dur = o.dur || 0.15;
+    const peak = o.gain == null ? 0.18 : o.gain;
+
+    const n = Math.max(1, Math.floor(ac.sampleRate * dur));
+    const buf = ac.createBuffer(1, n, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
+
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+
+    const flt = ac.createBiquadFilter();
+    flt.type = o.filter || 'bandpass';
+    flt.frequency.setValueAtTime(o.freq || 900, t0);
+    if (o.to) flt.frequency.exponentialRampToValueAtTime(Math.max(60, o.to), t0 + dur);
+    flt.Q.value = o.q == null ? 1 : o.q;
+
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + (o.attack || 0.006));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+    src.connect(flt);
+    flt.connect(g);
+    g.connect(Sound.master);
+    src.start(t0);
+    src.stop(t0 + dur + 0.03);
+  }
+
+  /** 环境音：海浪的低频底噪，用很慢的起伏让它像真的海 */
+  function startAmbient() {
+    if (!Sound.ctx || Sound.ambient) return;
+    const ac = Sound.ctx;
+
+    const len = Math.floor(ac.sampleRate * 2);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 480;
+    lp.Q.value = 0.7;
+
+    const g = ac.createGain();
+    g.gain.value = 0.05;
+
+    // 很慢的 LFO：浪声一起一伏
+    const lfo = ac.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.11;
+    const lfoGain = ac.createGain();
+    lfoGain.gain.value = 0.032;
+    lfo.connect(lfoGain);
+    lfoGain.connect(g.gain);
+
+    src.connect(lp);
+    lp.connect(g);
+    g.connect(Sound.master);
+    src.start();
+    lfo.start();
+
+    Sound.ambient = { src: src, lfo: lfo, gain: g };
+  }
+
+  function stopAmbient() {
+    if (!Sound.ambient) return;
+    try {
+      Sound.ambient.src.stop();
+      Sound.ambient.lfo.stop();
+    } catch (e) { /* 已经停了就忽略 */ }
+    Sound.ambient = null;
+  }
+
+  /** 音效表：每个名字对应一小段合成出来的声音 */
+  function sfx(name) {
+    if (!Sound.enabled) return;
+
+    switch (name) {
+      case 'chop':      // 砍树：木头的闷响
+        playNoise({ freq: 760, to: 260, dur: 0.16, gain: 0.22, q: 1.4 });
+        playTone({ freq: 190, to: 110, dur: 0.14, type: 'triangle', gain: 0.14 });
+        break;
+
+      case 'mine':      // 挖石头：清脆的碎石声
+        playNoise({ freq: 2600, to: 1500, dur: 0.11, gain: 0.17, q: 2.2 });
+        playTone({ freq: 1350, to: 900, dur: 0.09, type: 'square', gain: 0.05 });
+        break;
+
+      case 'tap':       // 采集过程中的小凿击
+        playNoise({ freq: 1100, to: 700, dur: 0.06, gain: 0.09, q: 1.6 });
+        break;
+
+      case 'cast':      // 甩竿
+        playNoise({ freq: 420, to: 2400, dur: 0.22, gain: 0.11, q: 0.9 });
+        break;
+
+      case 'plop':      // 浮漂入水
+        playTone({ freq: 340, to: 170, dur: 0.2, type: 'sine', gain: 0.16, delay: 0.18 });
+        playNoise({ freq: 700, to: 300, dur: 0.16, gain: 0.07, filter: 'lowpass', delay: 0.18 });
+        break;
+
+      case 'catch':     // 上钩：三连上行，一听就知道成功了
+        playTone({ freq: 660, dur: 0.1, type: 'triangle', gain: 0.16 });
+        playTone({ freq: 880, dur: 0.1, type: 'triangle', gain: 0.16, delay: 0.08 });
+        playTone({ freq: 1320, dur: 0.22, type: 'triangle', gain: 0.14, delay: 0.16 });
+        break;
+
+      case 'build':     // 建造 / 制作完成：向上的琶音
+        playTone({ freq: 523, dur: 0.14, type: 'triangle', gain: 0.15 });
+        playTone({ freq: 659, dur: 0.14, type: 'triangle', gain: 0.15, delay: 0.09 });
+        playTone({ freq: 784, dur: 0.14, type: 'triangle', gain: 0.14, delay: 0.18 });
+        playTone({ freq: 1047, dur: 0.3, type: 'triangle', gain: 0.13, delay: 0.27 });
+        break;
+
+      case 'plant':     // 播种：泥土的沙沙声
+        playNoise({ freq: 520, to: 240, dur: 0.22, gain: 0.13, filter: 'lowpass' });
+        break;
+
+      case 'harvest':   // 收获：轻快的一声
+        playNoise({ freq: 1800, to: 900, dur: 0.1, gain: 0.12, q: 1.2 });
+        playTone({ freq: 720, to: 980, dur: 0.16, type: 'triangle', gain: 0.11 });
+        break;
+
+      case 'mature':    // 作物成熟：两声风铃
+        playTone({ freq: 880, dur: 0.5, type: 'sine', gain: 0.13 });
+        playTone({ freq: 1175, dur: 0.6, type: 'sine', gain: 0.1, delay: 0.14 });
+        break;
+
+      case 'eat':       // 吃东西：两下咀嚼
+        playNoise({ freq: 420, dur: 0.09, gain: 0.14, filter: 'lowpass' });
+        playNoise({ freq: 360, dur: 0.1, gain: 0.12, filter: 'lowpass', delay: 0.13 });
+        playTone({ freq: 240, to: 180, dur: 0.18, type: 'sine', gain: 0.07, delay: 0.05 });
+        break;
+
+      case 'click':     // 按钮
+        playTone({ freq: 1250, dur: 0.04, type: 'square', gain: 0.05 });
+        break;
+
+      case 'open':      // 菜单弹出
+        playNoise({ freq: 300, to: 1400, dur: 0.16, gain: 0.07, q: 0.8 });
+        break;
+
+      case 'close':     // 菜单收起
+        playNoise({ freq: 1200, to: 300, dur: 0.14, gain: 0.06, q: 0.8 });
+        break;
+
+      case 'over':      // 游戏结束：下行的闷音
+        playTone({ freq: 440, dur: 0.35, type: 'sawtooth', gain: 0.08 });
+        playTone({ freq: 349, dur: 0.35, type: 'sawtooth', gain: 0.08, delay: 0.22 });
+        playTone({ freq: 262, dur: 0.6, type: 'sawtooth', gain: 0.09, delay: 0.44 });
+        break;
+
+      case 'heart':     // 低饥饿时的心跳
+        playTone({ freq: 120, to: 60, dur: 0.16, type: 'sine', gain: 0.24 });
+        playTone({ freq: 100, to: 55, dur: 0.18, type: 'sine', gain: 0.17, delay: 0.22 });
+        break;
+
+      case 'bird':      // 偶尔的鸟叫
+        playTone({ freq: 2100, to: 2900, dur: 0.08, type: 'sine', gain: 0.05 });
+        playTone({ freq: 2600, to: 2000, dur: 0.1, type: 'sine', gain: 0.04, delay: 0.1 });
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  /**
+   * 触感反馈
+   * 在 App 里走 Taptic 引擎；普通浏览器退回到系统振动（安卓有效，iOS Safari 没有这个接口）
+   */
+  function buzz(name) {
+    if (!Sound.enabled) return;
+
+    if (typeof window.__haptic === 'function') {
+      try {
+        window.__haptic(name);
+      } catch (e) { /* 忽略 */ }
+      return;
+    }
+
+    if (navigator.vibrate) {
+      const pattern = name === 'craft' ? [12, 40, 18]
+        : name === 'catch' ? [10, 45, 10]
+        : [14];
+      try { navigator.vibrate(pattern); } catch (e) { /* 忽略 */ }
+    }
+  }
+
+  /** 饥饿度低时的心跳：越饿跳得越快 */
+  function updateHeartbeat(dt) {
+    if (state.gameOver) return;
+
+    const ratio = state.hunger / HUNGER_MAX;
+    if (ratio > 0.25) {
+      state.heartT = 0;
+      return;
+    }
+
+    // 25% 时约 1.5 秒一次，快饿晕时约 0.7 秒一次
+    const interval = 0.7 + (ratio / 0.25) * 0.8;
+    state.heartT -= dt;
+    if (state.heartT <= 0) {
+      state.heartT = interval;
+      sfx('heart');
+    }
+  }
+
+  /** 刷新音效按钮的图标 */
+  function syncSoundUI() {
+    soundBtn.classList.toggle('off', !Sound.enabled);
+    soundBtn.setAttribute('aria-label', Sound.enabled ? '关闭音效' : '开启音效');
+  }
+
+  /** 开关音效 */
+  function toggleSound() {
+    Sound.enabled = !Sound.enabled;
+    saveSoundPref();
+    syncSoundUI();
+
+    if (Sound.enabled) {
+      audioCtx();        // 现在才真正创建音频上下文
+      startAmbient();
+      sfx('click');
+      showToast('音效已开启');
+    } else {
+      stopAmbient();
+      showToast('音效已关闭');
+    }
+  }
+
+  // ==================================================================
+  // 12. 存档（存在浏览器本地，关掉网页再打开还能接着玩）
+  // ==================================================================
+  const SAVE_KEY = 'island-survival-save-v1';
+
+  /** 存档：把关键数值和资源的存活状态写进 localStorage */
+  function saveGame() {
+    try {
+      if (state.gameOver) {
+        localStorage.removeItem(SAVE_KEY);
+        return;
+      }
+
+      const data = {
+        v: 1,
+        wood: state.wood,
+        stone: state.stone,
+        fish: state.fish,
+        food: state.food,
+        hunger: state.hunger,
+        hasAxe: state.hasAxe,
+        hasBench: state.hasBench,
+        farm: {
+          built: state.farm.built,
+          planted: state.farm.planted,
+          growth: state.farm.growth,
+          ready: state.farm.ready
+        },
+        trees: state.trees.map(t => (t.alive ? 1 : 0)),
+        rocks: state.rocks.map(r => (r.alive ? 1 : 0)),
+        // 位置按屏幕比例存，换设备或旋转屏幕都能落回原来的地方
+        px: world.W ? state.player.x / world.W : 0.5,
+        py: world.H ? state.player.y / world.H : 0.5
+      };
+
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    } catch (e) {
+      // 无痕模式或存储已满：静默放弃，不影响游戏
+    }
+  }
+
+  /** 读档：有存档就恢复，返回是否恢复成功 */
+  function loadGame() {
+    let data = null;
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      data = JSON.parse(raw);
+    } catch (e) {
+      return false;
+    }
+    if (!data || data.v !== 1) return false;
+
+    state.wood = data.wood || 0;
+    state.stone = data.stone || 0;
+    state.fish = data.fish || 0;
+    state.food = data.food || 0;
+    state.hunger = typeof data.hunger === 'number' ? data.hunger : HUNGER_MAX;
+    state.hasAxe = !!data.hasAxe;
+    state.hasBench = !!data.hasBench;
+
+    if (data.farm) {
+      state.farm.built = !!data.farm.built;
+      state.farm.planted = !!data.farm.planted;
+      state.farm.growth = data.farm.growth || 0;
+      state.farm.ready = !!data.farm.ready;
+    }
+
+    // 已经采掉的树和石头保持消失
+    if (Array.isArray(data.trees)) {
+      state.trees.forEach((t, i) => { t.alive = data.trees[i] !== 0; });
+    }
+    if (Array.isArray(data.rocks)) {
+      state.rocks.forEach((r, i) => { r.alive = data.rocks[i] !== 0; });
+    }
+
+    // 还原角色位置，落进水里或海里就留在岛心
+    const px = (data.px || 0.5) * world.W;
+    const py = (data.py || 0.5) * world.H;
+    if (isWalkable(px, py)) {
+      state.player.x = px;
+      state.player.y = py;
+    }
+
+    // 存档时已经快饿晕的，留一点血，不要一进来就结束
+    if (state.hunger <= 0) state.hunger = 8;
+
+    return true;
+  }
+
+  /** 清掉存档（重新开始时用） */
+  function clearSave() {
+    try {
+      localStorage.removeItem(SAVE_KEY);
+    } catch (e) { /* 忽略 */ }
+  }
+
+  // ==================================================================
+  // 13. 启动
   // ==================================================================
   let lastTime = 0;
 
@@ -2197,14 +2803,32 @@
     resize();
     resetPlayer();
 
+    // 音效开关是上次的选择
+    loadSoundPref();
+    syncSoundUI();
+
+    // 有存档就接着上次玩
+    if (loadGame()) {
+      showToast('已继续上次的进度');
+    }
+
     syncResourceUI();
     syncHungerUI();
     syncCraftMenu();
     syncActionUI();
 
+    // 第一次摸屏幕时解锁音频（iOS 不允许页面自己发声）
+    wrap.addEventListener('pointerdown', unlockAudio, { once: true });
+
     window.addEventListener('resize', resize);
     window.addEventListener('orientationchange', resize);
-    document.addEventListener('visibilitychange', () => { lastTime = 0; });
+
+    // 切到后台或关掉网页时立刻存一次档
+    document.addEventListener('visibilitychange', () => {
+      lastTime = 0;
+      if (document.visibilityState === 'hidden') saveGame();
+    });
+    window.addEventListener('pagehide', saveGame);
 
     setTimeout(hideHint, 7000);   // 提示文字过几秒自己淡出
 
