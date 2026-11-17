@@ -1,0 +1,2218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#79c4d1">
+<title>荒岛生存法则</title>
+<style>
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #79c4d1;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+
+  /* 游戏容器：铺满屏幕，禁止手势滚动 */
+  #wrap {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  #stage {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+
+  /* ---------- 左上角：资源数量 + 提示文字 ---------- */
+  .hud-left {
+    position: absolute;
+    left: 0;
+    top: 0;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 0 0 calc(env(safe-area-inset-left, 0px) + 14px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+    pointer-events: none;
+  }
+
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 11px 5px 9px;
+    background: rgba(255, 252, 240, 0.94);
+    border: 2px solid #4a3a2a;
+    border-radius: 12px;
+    box-shadow: 0 3px 0 rgba(74, 58, 42, 0.18);
+    font-size: 14px;
+    font-weight: 700;
+    color: #4a3a2a;
+  }
+
+  .chip .dot {
+    width: 12px;
+    height: 12px;
+    border: 2px solid #4a3a2a;
+    flex: none;
+  }
+  .chip .dot.wood  { background: #a9784c; border-radius: 3px; transform: rotate(-10deg); }
+  .chip .dot.stone { background: #c9c9c0; border-radius: 50%; }
+  .chip .dot.fish  { background: #8fd6e8; border-radius: 50% 50% 50% 2px; }
+  .chip .dot.food  { background: #e8b23f; border-radius: 50%; }
+
+  .chip .num {
+    min-width: 16px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 可以点着吃的资源（鱼 / 食物） */
+  .chip.eat {
+    pointer-events: auto;
+    cursor: pointer;
+    padding-right: 6px;
+  }
+  .chip.eat:active { transform: scale(0.95); }
+
+  .chip .tag {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 5px;
+    border-radius: 6px;
+    background: #7ba85c;
+    color: #fff8e6;
+    margin-left: 1px;
+  }
+  .chip.eat.empty .tag { background: #b8b0a0; }
+
+  /* 采集成功时左上角弹一下的文字 */
+  #toast {
+    padding: 5px 11px;
+    border-radius: 10px;
+    background: rgba(74, 58, 42, 0.86);
+    color: #fff8e6;
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  #toast.show { animation: toastPop 1.3s ease-out forwards; }
+
+  @keyframes toastPop {
+    0%   { opacity: 0; transform: translateY(-8px) scale(0.94); }
+    12%  { opacity: 1; transform: translateY(0) scale(1); }
+    74%  { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  }
+
+  /* ---------- 右上角：饥饿条 ---------- */
+  .hud-right {
+    position: absolute;
+    right: 0;
+    top: 0;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) calc(env(safe-area-inset-right, 0px) + 14px) 0 0;
+    pointer-events: none;
+  }
+
+  .hunger {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    padding: 8px 10px;
+    background: rgba(255, 252, 240, 0.94);
+    border: 2px solid #4a3a2a;
+    border-radius: 12px;
+    box-shadow: 0 3px 0 rgba(74, 58, 42, 0.18);
+  }
+
+  .hunger-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #4a3a2a;
+  }
+
+  .bar {
+    width: 86px;
+    height: 12px;
+    border: 2px solid #4a3a2a;
+    border-radius: 999px;
+    background: #f1e7d1;
+    overflow: hidden;
+  }
+
+  #hungerFill {
+    height: 100%;
+    width: 100%;
+    background: #7cc26b;
+    transition: background 0.35s linear;
+  }
+
+  /* ---------- 左下角：虚拟摇杆 ---------- */
+  #joystick {
+    position: absolute;
+    left: calc(env(safe-area-inset-left, 0px) + 18px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 26px);
+    width: 116px;
+    height: 116px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 42%,
+                rgba(255, 252, 240, 0.34),
+                rgba(255, 252, 240, 0.14) 70%,
+                rgba(255, 252, 240, 0.08));
+    border: 2px solid rgba(74, 58, 42, 0.40);
+    box-shadow: inset 0 0 0 6px rgba(255, 255, 255, 0.16),
+                0 6px 16px rgba(18, 52, 62, 0.16);
+    touch-action: none;
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+  }
+
+  /* 底盘中间的十字小刻线，让摇杆看起来更"仪表"一点 */
+  #joystick::before,
+  #joystick::after {
+    content: '';
+    position: absolute;
+    background: rgba(74, 58, 42, 0.16);
+    border-radius: 2px;
+  }
+  #joystick::before { left: 50%; top: 16px; bottom: 16px; width: 1.5px; margin-left: -0.75px; }
+  #joystick::after  { top: 50%; left: 16px; right: 16px; height: 1.5px; margin-top: -0.75px; }
+
+  #joyKnob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 52px;
+    height: 52px;
+    margin: -26px 0 0 -26px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 36% 30%,
+                rgba(255, 255, 255, 0.96),
+                rgba(244, 230, 190, 0.94) 58%,
+                rgba(214, 190, 130, 0.94));
+    border: 2px solid rgba(74, 58, 42, 0.52);
+    box-shadow: 0 3px 8px rgba(18, 52, 62, 0.24),
+                inset 0 -2px 4px rgba(160, 130, 80, 0.28);
+    transition: transform 0.12s ease-out;
+    will-change: transform;
+  }
+  #joystick.active #joyKnob { transition: none; }
+
+  /* ---------- 右下角：情境互动按钮 ---------- */
+  #actionBtn {
+    position: absolute;
+    right: calc(env(safe-area-inset-right, 0px) + 22px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 34px);
+    width: 82px;
+    height: 82px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid #4a3a2a;
+    background: #8a5b3a;
+    color: #fff8e6;
+    box-shadow: 0 4px 0 rgba(74, 58, 42, 0.55);
+    font-family: inherit;
+    opacity: 0;
+    transform: scale(0.82);
+    pointer-events: none;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+  }
+  #actionBtn.show { opacity: 1; transform: scale(1); pointer-events: auto; }
+  #actionBtn:active { transform: scale(0.94); box-shadow: 0 1px 0 rgba(74, 58, 42, 0.55); }
+  #actionBtn.dim { background: #8b8175; }
+
+  .a-icon { width: 26px; height: 26px; display: block; }
+  .a-icon svg { width: 100%; height: 100%; display: block; }
+  .a-label { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+
+  /* ---------- 底部中间：制作按钮 ---------- */
+  #craftOpenBtn {
+    position: absolute;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 30px);
+    transform: translateX(-50%);
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #fff8e6;
+    padding: 12px 26px;
+    border: 2px solid #4a3a2a;
+    border-radius: 15px;
+    background: #7ba85c;
+    box-shadow: 0 4px 0 #4a3a2a;
+    cursor: pointer;
+  }
+  #craftOpenBtn:active { transform: translateX(-50%) translateY(3px); box-shadow: 0 1px 0 #4a3a2a; }
+
+  /* ---------- 钓鱼进度条 ---------- */
+  #fishPanel {
+    position: absolute;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 132px);
+    transform: translateX(-50%) translateY(10px);
+    width: min(62vw, 230px);
+    padding: 10px 12px;
+    background: rgba(255, 252, 240, 0.96);
+    border: 2px solid #4a3a2a;
+    border-radius: 14px;
+    box-shadow: 0 3px 0 rgba(74, 58, 42, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  #fishPanel.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .fp-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #4a3a2a;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+
+  .fp-bar {
+    height: 10px;
+    border: 2px solid #4a3a2a;
+    border-radius: 999px;
+    background: #f1e7d1;
+    overflow: hidden;
+  }
+  #fishFill { height: 100%; width: 0%; background: #5fa9bd; }
+
+  /* ---------- 制作菜单 ---------- */
+  #craftMenu {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(20, 40, 48, 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  #craftMenu.show { opacity: 1; pointer-events: auto; }
+
+  .sheet {
+    width: 100%;
+    max-width: 460px;
+    padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 18px);
+    background: #fffcf0;
+    border-top: 3px solid #4a3a2a;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -8px 24px rgba(20, 40, 48, 0.25);
+    transform: translateY(18px);
+    transition: transform 0.22s ease;
+  }
+  #craftMenu.show .sheet { transform: translateY(0); }
+
+  .sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .sheet-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: #4a3a2a;
+  }
+
+  .sheet-close {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: #8a7860;
+    padding: 6px 14px;
+    border: 2px solid #d8cbb2;
+    border-radius: 10px;
+    background: transparent;
+  }
+
+  .recipe {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+    margin-bottom: 10px;
+    background: #f7f0de;
+    border: 2px solid #d8cbb2;
+    border-radius: 14px;
+  }
+
+  .r-icon {
+    width: 38px;
+    height: 38px;
+    flex: none;
+    border-radius: 10px;
+    background: #fffcf0;
+    border: 2px solid #d8cbb2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .r-icon svg { width: 24px; height: 24px; display: block; }
+
+  .r-info { flex: 1; min-width: 0; }
+
+  .r-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #4a3a2a;
+    margin-bottom: 2px;
+  }
+
+  .r-cost { font-size: 12px; font-weight: 600; color: #8a7860; }
+  .r-cost .lack { color: #c2452f; }
+
+  .r-btn {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    flex: none;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #fff8e6;
+    padding: 9px 16px;
+    border: 2px solid #4a3a2a;
+    border-radius: 11px;
+    background: #8a5b3a;
+    box-shadow: 0 3px 0 rgba(74, 58, 42, 0.5);
+  }
+  .r-btn:disabled {
+    background: #cfc4ae;
+    color: #fffcf0;
+    border-color: #b3a894;
+    box-shadow: 0 3px 0 rgba(74, 58, 42, 0.16);
+  }
+  .r-btn:not(:disabled):active { transform: translateY(3px); box-shadow: 0 0 0 rgba(74, 58, 42, 0.5); }
+
+  .sheet-tip {
+    margin: 4px 2px 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #a09280;
+  }
+
+  /* ---------- 游戏结束遮罩 ---------- */
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(26, 40, 48, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 20;
+  }
+  #overlay.show { opacity: 1; pointer-events: auto; }
+
+  .panel {
+    width: min(80vw, 300px);
+    padding: 26px 22px 24px;
+    text-align: center;
+    background: #fffcf0;
+    border: 3px solid #4a3a2a;
+    border-radius: 22px;
+    box-shadow: 0 8px 0 rgba(74, 58, 42, 0.35);
+  }
+
+  .panel .title {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: #4a3a2a;
+  }
+
+  .panel .sub {
+    margin: 0 0 20px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #8a7860;
+  }
+
+  .restart-btn {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #fff8e6;
+    padding: 11px 26px;
+    border: 2px solid #4a3a2a;
+    border-radius: 15px;
+    background: #7ba85c;
+    box-shadow: 0 4px 0 #4a3a2a;
+  }
+  .restart-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #4a3a2a; }
+
+  /* ---------- 操作提示 ---------- */
+  #hint {
+    position: absolute;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+    transform: translateX(-50%);
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: rgba(74, 58, 42, 0.66);
+    color: #fff8e6;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    transition: opacity 0.7s ease;
+  }
+  #hint.hide { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="stage"></canvas>
+
+  <!-- 左上角：资源数值 + 采集提示 -->
+  <div class="hud-left">
+    <div class="chip">
+      <span class="dot wood"></span>
+      <span>木材</span>
+      <span class="num" id="woodNum">0</span>
+    </div>
+    <div class="chip">
+      <span class="dot stone"></span>
+      <span>石头</span>
+      <span class="num" id="stoneNum">0</span>
+    </div>
+    <div class="chip eat" id="fishChip">
+      <span class="dot fish"></span>
+      <span>鱼</span>
+      <span class="num" id="fishNum">0</span>
+      <span class="tag">吃</span>
+    </div>
+    <div class="chip eat" id="foodChip">
+      <span class="dot food"></span>
+      <span>食物</span>
+      <span class="num" id="foodNum">0</span>
+      <span class="tag">吃</span>
+    </div>
+    <div id="toast"></div>
+  </div>
+
+  <!-- 右上角：饥饿条 -->
+  <div class="hud-right">
+    <div class="hunger">
+      <span class="hunger-label">饥饿</span>
+      <div class="bar"><div id="hungerFill"></div></div>
+    </div>
+  </div>
+
+  <!-- 钓鱼进度条 -->
+  <div id="fishPanel">
+    <div class="fp-label">钓鱼中…</div>
+    <div class="fp-bar"><div id="fishFill"></div></div>
+  </div>
+
+  <!-- 左下角：虚拟摇杆 -->
+  <div id="joystick">
+    <div id="joyKnob"></div>
+  </div>
+
+  <!-- 右下角：情境互动按钮（砍树 / 挖矿 / 钓鱼 / 农田） -->
+  <button id="actionBtn">
+    <span class="a-icon" id="actionIcon"></span>
+    <span class="a-label" id="actionLabel"></span>
+  </button>
+
+  <!-- 底部中间：制作 -->
+  <button id="craftOpenBtn">制作</button>
+
+  <!-- 制作菜单 -->
+  <div id="craftMenu">
+    <div class="sheet">
+      <div class="sheet-head">
+        <span class="sheet-title">制作</span>
+        <button class="sheet-close" id="craftCloseBtn">关闭</button>
+      </div>
+
+      <div class="recipe">
+        <div class="r-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 21 L15 8"/>
+            <path d="M12 4 q6 -2 8 4 q-5 3 -9 1 z" fill="#c9c9c0"/>
+          </svg>
+        </div>
+        <div class="r-info">
+          <div class="r-name">石斧</div>
+          <div class="r-cost" id="axeCost">木材 ×3</div>
+        </div>
+        <button class="r-btn" id="craftAxeBtn">制作</button>
+      </div>
+
+      <div class="recipe">
+        <div class="r-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12 h18"/>
+            <path d="M6 12 v8"/><path d="M18 12 v8"/>
+            <path d="M9 12 v-5 h7 v5" fill="#c8a377"/>
+          </svg>
+        </div>
+        <div class="r-info">
+          <div class="r-name">工作台</div>
+          <div class="r-cost" id="benchCost">木材 ×5 · 石头 ×3</div>
+        </div>
+        <button class="r-btn" id="craftBenchBtn">制作</button>
+      </div>
+
+      <p class="sheet-tip">工作台建好后，才能在岛右侧的空地上建造农田。</p>
+    </div>
+  </div>
+
+  <!-- 游戏结束 -->
+  <div id="overlay">
+    <div class="panel">
+      <h1 class="title">游戏结束</h1>
+      <p class="sub">饥饿度降到 0，你在荒岛上饿晕了</p>
+      <button id="restartBtn" class="restart-btn">再玩一次</button>
+    </div>
+  </div>
+
+  <div id="hint">拖动左下角摇杆移动 · 碰到树木石头自动采集</div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ==================================================================
+  // 0. DOM 引用
+  // ==================================================================
+  const wrap     = document.getElementById('wrap');
+  const canvas   = document.getElementById('stage');
+  const ctx      = canvas.getContext('2d');
+
+  const woodNumEl    = document.getElementById('woodNum');
+  const stoneNumEl   = document.getElementById('stoneNum');
+  const fishNumEl    = document.getElementById('fishNum');
+  const foodNumEl    = document.getElementById('foodNum');
+  const fishChipEl   = document.getElementById('fishChip');
+  const foodChipEl   = document.getElementById('foodChip');
+  const hungerFillEl = document.getElementById('hungerFill');
+  const toastEl      = document.getElementById('toast');
+  const hintEl       = document.getElementById('hint');
+
+  const joystickEl = document.getElementById('joystick');
+  const knobEl     = document.getElementById('joyKnob');
+
+  const actionBtn   = document.getElementById('actionBtn');
+  const actionIcon  = document.getElementById('actionIcon');
+  const actionLabel = document.getElementById('actionLabel');
+
+  const fishPanelEl = document.getElementById('fishPanel');
+  const fishFillEl  = document.getElementById('fishFill');
+
+  const craftOpenBtn  = document.getElementById('craftOpenBtn');
+  const craftMenuEl   = document.getElementById('craftMenu');
+  const craftCloseEl  = document.getElementById('craftCloseBtn');
+  const craftAxeBtn   = document.getElementById('craftAxeBtn');
+  const craftBenchBtn = document.getElementById('craftBenchBtn');
+  const axeCostEl     = document.getElementById('axeCost');
+  const benchCostEl   = document.getElementById('benchCost');
+
+  const overlayEl  = document.getElementById('overlay');
+  const restartBtn = document.getElementById('restartBtn');
+
+  // ==================================================================
+  // 1. 常量（配色 + 数值平衡）
+  // 想调难度就改这里：饥饿下降速度、各种成本、生长时间等
+  // ==================================================================
+  const SEA        = '#79c4d1';                 // 海水
+  const SEA_LINE   = 'rgba(255,255,255,0.45)';  // 海浪线
+  const SAND       = '#f0dfb0';                 // 沙滩
+  const SAND_EDGE  = '#d9c489';                 // 沙滩描边
+  const GRASS      = '#a8d377';                 // 草地
+  const GRASS_EDGE = '#7fb156';                 // 草地描边
+  const WATER      = '#8fd6e8';                 // 水塘
+  const WATER_EDGE = '#5fa9bd';                 // 水塘描边
+  const INK        = '#4a3a2a';                 // 简笔画线条色（深棕，比纯黑柔和）
+  const SHADOW     = 'rgba(50,80,40,0.16)';     // 地面投影
+  const FONT       = '-apple-system, "PingFang SC", sans-serif';
+
+  const PLAYER_SPEED = 165;   // 角色最大移动速度（逻辑像素 / 秒）
+  const PLAYER_R     = 11;    // 角色占地半径（用于判断"贴到"资源）
+
+  const HUNGER_MAX   = 100;   // 饥饿度上限
+  const HUNGER_DRAIN = 0.8;   // 饥饿度每秒下降多少（越小越耐饿）
+
+  const WOOD_COST_AXE    = 3;  // 石斧：木材 3
+  const WOOD_COST_BENCH  = 5;  // 工作台：木材 5
+  const STONE_COST_BENCH = 3;  // 工作台：石头 3
+  const WOOD_COST_FARM   = 4;  // 农田：木材 4
+  const STONE_COST_FARM  = 2;  // 农田：石头 2
+
+  const FISH_DURATION   = 3;   // 钓鱼等待秒数
+  const FISH_HUNGER     = 20;  // 钓到鱼当场恢复的饥饿
+  const FARM_GROW_TIME  = 30;  // 作物长成秒数
+  const EAT_FISH_HUNGER = 20;  // 吃一条鱼恢复的饥饿
+  const EAT_FOOD_HUNGER = 25;  // 吃一份食物恢复的饥饿
+
+  // 碰到资源多久后自动采集（做出石斧后几乎秒采）
+  const CONTACT_TIME_BARE = 0.8;
+  const CONTACT_TIME_AXE  = 0.12;
+
+  // 树的位置：用相对屏幕的比例坐标保存，不同尺寸的手机上都能落在岛上
+  // 一共 14 棵，够做石斧 + 工作台 + 农田（合计 12 木材）
+  const TREE_SPOTS = [
+    [0.27, 0.24], [0.50, 0.17], [0.73, 0.24], [0.16, 0.42], [0.36, 0.34],
+    [0.40, 0.80], [0.60, 0.82], [0.86, 0.30], [0.20, 0.60], [0.90, 0.62],
+    [0.10, 0.52], [0.44, 0.62], [0.22, 0.32], [0.84, 0.74]
+  ];
+  // 石头的位置（同样是比例坐标）
+  const ROCK_SPOTS = [
+    [0.63, 0.36], [0.30, 0.52], [0.88, 0.44], [0.46, 0.72],
+    [0.16, 0.78], [0.78, 0.80], [0.52, 0.28]
+  ];
+
+  // ==================================================================
+  // 2. 游戏状态
+  // 所有会变的数值都集中在这里，方便后续读档 / 存档
+  // ==================================================================
+  const state = {
+    wood: 0,             // 木材
+    stone: 0,            // 石头
+    fish: 0,             // 鱼（可点击食用）
+    food: 0,             // 食物（可点击食用）
+    hunger: HUNGER_MAX,  // 饥饿度，降到 0 游戏结束
+    hasAxe: false,       // 是否做好了石斧
+    hasBench: false,     // 是否建好了工作台（解锁农田）
+    gameOver: false,     // 是否已经结束
+    time: 0,             // 累计时间（秒），驱动各种小动画
+
+    player: {            // 角色
+      x: 0, y: 0,        // 当前位置（世界坐标）
+      moving: false,     // 是否在走路（决定是否播放走路起伏）
+      bob: 0,            // 走路起伏的相位
+      facing: 1          // 朝向：1 向右，-1 向左
+    },
+
+    joy: { nx: 0, ny: 0, mag: 0 },   // 摇杆输出：方向 × 力度
+
+    contact: { target: null, t: 0 }, // 当前贴着的资源 + 已接触时长
+
+    fishing: { active: false, t: 0 },// 钓鱼进度
+
+    farm: {              // 农田
+      built: false,      // 是否已经建好
+      planted: false,    // 是否已经播种
+      growth: 0,         // 生长进度 0..1
+      ready: false       // 是否成熟可收获
+    },
+
+    trees: [],           // 树：{ kind, fx, fy, x, y, r, alive, canopy }
+    rocks: [],           // 石头：{ kind, fx, fy, x, y, r, alive, pts }
+    floats: [],          // 采集时飘起来的 "+1" 文字
+
+    actionKey: ''        // 互动按钮当前状态缓存（避免每帧刷 DOM）
+  };
+
+  // 世界布局（小岛、水塘、农田、海浪、草丛的几何数据）
+  const world = {
+    W: 0, H: 0,                 // 画布逻辑尺寸（等于 CSS 像素）
+    island: { cx: 0, cy: 0, rx: 0, ry: 0, blob: [], innerBlob: [] },
+    pond:   { x: 0, y: 0, rx: 0, ry: 0, blob: [] },
+    farm:   { x: 0, y: 0, w: 0, h: 0 },   // 农田中心 + 宽高
+    bench:  { x: 0, y: 0 },               // 工作台位置
+    waves: [],                  // 海面波浪
+    tufts: []                   // 草地上的小草簇
+  };
+
+  // ==================================================================
+  // 3. 通用工具函数
+  // ==================================================================
+
+  /**
+   * 可复现的伪随机数（同一个种子每次得到同样的抖动）
+   * 用来画"手绘感"的歪歪扭扭的线条，并且保证每一帧形状不变
+   */
+  function makeRandom(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /** 生成一圈带抖动的圆点（相对圆心），用于画手绘风的圆 */
+  function circlePts(r, jitter, rand) {
+    const pts = [];
+    const n = 14;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2;
+      const k = 1 + (rand() * 2 - 1) * jitter;
+      pts.push({ x: Math.cos(ang) * r * k, y: Math.sin(ang) * r * k * 0.95 });
+    }
+    return pts;
+  }
+
+  /** 用二次贝塞尔把点串成平滑的闭合曲线（手绘感的形状都靠它） */
+  function smoothPath(pts, ox, oy) {
+    ox = ox || 0;
+    oy = oy || 0;
+    const n = pts.length;
+    if (n < 3) return;
+    ctx.beginPath();
+    const last = pts[n - 1];
+    const first = pts[0];
+    ctx.moveTo((last.x + first.x) / 2 + ox, (last.y + first.y) / 2 + oy);
+    for (let i = 0; i < n; i++) {
+      const cur = pts[i];
+      const next = pts[(i + 1) % n];
+      ctx.quadraticCurveTo(
+        cur.x + ox, cur.y + oy,
+        (cur.x + next.x) / 2 + ox, (cur.y + next.y) / 2 + oy
+      );
+    }
+    ctx.closePath();
+  }
+
+  /** 圆角矩形路径（农田、面板都用它） */
+  function roundRectPath(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
+  /** 判断点是否在小岛（椭圆）内部，k 越小范围越靠里 */
+  function ptInIsland(x, y, k) {
+    k = k || 1;
+    const isl = world.island;
+    const nx = (x - isl.cx) / (isl.rx * k);
+    const ny = (y - isl.cy) / (isl.ry * k);
+    return nx * nx + ny * ny <= 1;
+  }
+
+  /** 判断点是否在水塘里，k 越大范围越外扩 */
+  function inPond(x, y, k) {
+    k = k || 1;
+    const p = world.pond;
+    const nx = (x - p.x) / (p.rx * k);
+    const ny = (y - p.y) / (p.ry * k);
+    return nx * nx + ny * ny <= 1;
+  }
+
+  /** 角色能不能站在这个点上：岛内的草地，且不在水里 */
+  function isWalkable(x, y) {
+    if (!ptInIsland(x, y, 0.94)) return false;
+    if (inPond(x, y, 1.12)) return false;   // 水塘不能走进去，只能在岸边钓鱼
+    return true;
+  }
+
+  /** 到水塘中心的"归一化距离"：1 表示正好在岸边，越大越远 */
+  function pondDistance(x, y) {
+    const p = world.pond;
+    return Math.hypot((x - p.x) / p.rx, (y - p.y) / p.ry);
+  }
+
+  /** 角色是否站在水边（可以钓鱼） */
+  function isNearPond(x, y) {
+    return pondDistance(x, y) < 1.75;
+  }
+
+  /** 角色是否站在农田附近 */
+  function isNearFarm(x, y) {
+    const f = world.farm;
+    return Math.abs(x - f.x) < f.w / 2 + 26 &&
+           Math.abs(y - f.y) < f.h / 2 + 26;
+  }
+
+  // ==================================================================
+  // 4. 世界布局（响应屏幕尺寸）
+  // ==================================================================
+
+  /** 建出树和石头的数据（重开游戏时会重建，坐标是比例值，尺寸在布局时算） */
+  function buildEntities() {
+    state.trees = TREE_SPOTS.map((s, i) => ({
+      kind: 'tree', fx: s[0], fy: s[1],
+      x: 0, y: 0, r: 0, alive: true, canopy: null,
+      seed: 1103 + i * 37
+    }));
+    state.rocks = ROCK_SPOTS.map((s, i) => ({
+      kind: 'rock', fx: s[0], fy: s[1],
+      x: 0, y: 0, r: 0, alive: true, pts: null,
+      seed: 2207 + i * 53
+    }));
+  }
+
+  /** 根据当前屏幕尺寸，重新算一遍小岛、水塘、农田、树、石头的位置和形状 */
+  function layoutWorld() {
+    const W = world.W;
+    const H = world.H;
+    const base = Math.min(W, H);   // 用短边做尺寸基准，竖屏横屏都不会太夸张
+
+    // ---- 小岛：屏幕中央一块椭圆形的陆地 ----
+    const isl = world.island;
+    isl.cx = W * 0.5;
+    isl.cy = H * 0.52;
+    isl.rx = W * 0.46;
+    isl.ry = H * 0.42;
+
+    const rand1 = makeRandom(311);
+    isl.blob = [];
+    for (let i = 0; i < 26; i++) {
+      const ang = (i / 26) * Math.PI * 2;
+      const k = 1 + (rand1() * 2 - 1) * 0.035;
+      isl.blob.push({
+        x: isl.cx + Math.cos(ang) * isl.rx * k,
+        y: isl.cy + Math.sin(ang) * isl.ry * k
+      });
+    }
+
+    const rand2 = makeRandom(733);
+    isl.innerBlob = [];
+    for (let i = 0; i < 26; i++) {
+      const ang = (i / 26) * Math.PI * 2;
+      const k = 1 + (rand2() * 2 - 1) * 0.03;
+      isl.innerBlob.push({
+        x: isl.cx + Math.cos(ang) * isl.rx * 0.93 * k,
+        y: isl.cy + Math.sin(ang) * isl.ry * 0.92 * k
+      });
+    }
+
+    // ---- 水塘：岛左下方的一小片水边（钓鱼点）----
+    const pond = world.pond;
+    pond.x = W * 0.30;
+    pond.y = H * 0.66;
+    pond.rx = W * 0.16;
+    pond.ry = H * 0.048;
+
+    const rand3 = makeRandom(991);
+    pond.blob = [];
+    for (let i = 0; i < 20; i++) {
+      const ang = (i / 20) * Math.PI * 2;
+      const k = 1 + (rand3() * 2 - 1) * 0.07;
+      pond.blob.push({
+        x: pond.x + Math.cos(ang) * pond.rx * k,
+        y: pond.y + Math.sin(ang) * pond.ry * k
+      });
+    }
+
+    // ---- 农田：岛右侧留出的一块平地 ----
+    const farm = world.farm;
+    farm.w = W * 0.30;
+    farm.h = H * 0.15;
+    farm.x = W * 0.70;
+    farm.y = H * 0.56;
+
+    // ---- 工作台：建好后出现在农田下方 ----
+    world.bench.x = W * 0.66;
+    world.bench.y = H * 0.72;
+
+    // ---- 海面波浪：只放在小岛外面的海里 ----
+    world.waves = [];
+    const wrand = makeRandom(4242);
+    let guard = 0;
+    while (world.waves.length < 26 && guard++ < 600) {
+      const fx = wrand();
+      const fy = wrand();
+      if (ptInIsland(fx * W, fy * H, 1.12)) continue;  // 落在岛上就丢掉
+      world.waves.push({ fx: fx, fy: fy, w: 14 + wrand() * 24, p: wrand() * Math.PI * 2 });
+    }
+
+    // ---- 草地上的小草簇 ----
+    world.tufts = [];
+    const trand = makeRandom(777);
+    let tg = 0;
+    while (world.tufts.length < 26 && tg++ < 600) {
+      const x = (0.1 + trand() * 0.8) * W;
+      const y = (0.1 + trand() * 0.8) * H;
+      if (!ptInIsland(x, y, 0.86)) continue;
+      if (inPond(x, y, 1.25)) continue;
+      if (Math.abs(x - farm.x) < farm.w / 2 && Math.abs(y - farm.y) < farm.h / 2) continue;
+      world.tufts.push({ x: x, y: y, s: 0.7 + trand() * 0.6 });
+    }
+
+    // ---- 树：位置 + 半径 + 手绘树冠 ----
+    state.trees.forEach(t => {
+      t.x = t.fx * W;
+      t.y = t.fy * H;
+      t.r = Math.max(16, base * 0.058);
+      const rand = makeRandom(t.seed);
+      const r = t.r;
+      t.canopy = [
+        { ox: 0,         oy: -r * 1.05, r: r * 0.92, tone: 0 },
+        { ox: -r * 0.62, oy: -r * 0.72, r: r * 0.66, tone: 0 },
+        { ox:  r * 0.62, oy: -r * 0.72, r: r * 0.66, tone: 0 },
+        { ox:  r * 0.08, oy: -r * 1.62, r: r * 0.56, tone: 1 }
+      ].map(c => ({
+        ox: c.ox, oy: c.oy, r: c.r, tone: c.tone,
+        pts: circlePts(c.r, 0.07, rand)
+      }));
+    });
+
+    // ---- 石头 ----
+    state.rocks.forEach(rk => {
+      rk.x = rk.fx * W;
+      rk.y = rk.fy * H;
+      rk.r = Math.max(11, base * 0.040);
+      rk.pts = circlePts(rk.r, 0.2, makeRandom(rk.seed));
+    });
+  }
+
+  /** 画布跟着窗口尺寸变化：按 devicePixelRatio 放大，保证手机上清晰 */
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const nw = wrap.clientWidth || window.innerWidth;
+    const nh = wrap.clientHeight || window.innerHeight;
+
+    // 尺寸变化前算好比例，随后让角色位置跟着缩放，避免突然跑到海里
+    const sx = world.W ? nw / world.W : 1;
+    const sy = world.H ? nh / world.H : 1;
+
+    world.W = nw;
+    world.H = nh;
+
+    canvas.width = Math.round(nw * dpr);
+    canvas.height = Math.round(nh * dpr);
+    canvas.style.width = nw + 'px';
+    canvas.style.height = nh + 'px';
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    layoutWorld();
+
+    const p = state.player;
+    p.x *= sx;
+    p.y *= sy;
+  }
+
+  // ==================================================================
+  // 5. 绘制
+  // ==================================================================
+
+  /** 大海：整屏底色 + 缓慢漂移的手绘波浪线 */
+  function drawSea(t) {
+    ctx.fillStyle = SEA;
+    ctx.fillRect(0, 0, world.W, world.H);
+
+    ctx.strokeStyle = SEA_LINE;
+    ctx.lineWidth = 2;
+    world.waves.forEach(w => {
+      const x = w.fx * world.W + Math.sin(t * 0.6 + w.p) * 7;
+      const y = w.fy * world.H;
+      ctx.beginPath();
+      ctx.moveTo(x - w.w / 2, y);
+      ctx.quadraticCurveTo(x, y - 5, x + w.w / 2, y);
+      ctx.stroke();
+    });
+  }
+
+  /** 小岛：沙滩 + 草地 + 小草簇 */
+  function drawIsland() {
+    const isl = world.island;
+
+    ctx.fillStyle = SAND;
+    smoothPath(isl.blob);
+    ctx.fill();
+    ctx.strokeStyle = SAND_EDGE;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.fillStyle = GRASS;
+    smoothPath(isl.innerBlob);
+    ctx.fill();
+    ctx.strokeStyle = GRASS_EDGE;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 草丛点缀：几笔简单的 "v" 形小线
+    ctx.strokeStyle = GRASS_EDGE;
+    ctx.lineWidth = 2;
+    for (const tf of world.tufts) {
+      const s = 4 * tf.s;
+      ctx.beginPath();
+      ctx.moveTo(tf.x - s, tf.y - s * 0.7);
+      ctx.lineTo(tf.x - s * 0.4, tf.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(tf.x + s * 0.3, tf.y - s);
+      ctx.lineTo(tf.x + s * 0.6, tf.y);
+      ctx.stroke();
+    }
+  }
+
+  /** 水塘：一小片水边，带轻微的水纹动画 */
+  function drawPond(t) {
+    const p = world.pond;
+
+    ctx.fillStyle = WATER;
+    smoothPath(p.blob);
+    ctx.fill();
+    ctx.strokeStyle = WATER_EDGE;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.62)';
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 3; i++) {
+      const k = 0.55 - i * 0.14;
+      const rx = p.rx * k * (1 + Math.sin(t * 1.2 + i) * 0.05);
+      const ry = p.ry * k;
+      const px = p.x + Math.sin(t * 0.7 + i * 1.7) * 3;
+      ctx.beginPath();
+      ctx.ellipse(px, p.y + 1, rx, ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 站在水边时，水面亮一圈，提示这里可以钓鱼
+    const pl = state.player;
+    if (!state.gameOver && !state.fishing.active && isNearPond(pl.x, pl.y)) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 + Math.sin(t * 3) * 0.2) + ')';
+      ctx.lineWidth = 3;
+      smoothPath(p.blob);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** 农田：未建造时是一块虚线空地，建好后是翻耕过的土地 */
+  function drawFarm(t) {
+    const f = world.farm;
+    const x = f.x - f.w / 2;
+    const y = f.y - f.h / 2;
+    const farm = state.farm;
+
+    // ---- 还没建：虚线的空地 ----
+    if (!farm.built) {
+      ctx.save();
+      ctx.setLineDash([8, 7]);
+      ctx.lineDashOffset = -t * 8;
+      ctx.strokeStyle = 'rgba(74,58,42,0.42)';
+      ctx.lineWidth = 2.5;
+      roundRectPath(x, y, f.w, f.h, 12);
+      ctx.stroke();
+      ctx.restore();
+
+      // 四角木桩
+      ctx.fillStyle = '#b98a5a';
+      ctx.strokeStyle = 'rgba(74,58,42,0.5)';
+      ctx.lineWidth = 1.6;
+      [[x + 6, y + 6], [x + f.w - 6, y + 6],
+       [x + 6, y + f.h - 6], [x + f.w - 6, y + f.h - 6]].forEach(c => {
+        ctx.beginPath();
+        ctx.arc(c[0], c[1], 3.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+
+      ctx.fillStyle = 'rgba(74,58,42,0.45)';
+      ctx.font = 'bold 13px ' + FONT;
+      ctx.fillText('空地', f.x, f.y);
+      return;
+    }
+
+    // ---- 已建好：翻耕过的土地 ----
+    ctx.fillStyle = '#c8a377';
+    roundRectPath(x, y, f.w, f.h, 12);
+    ctx.fill();
+    ctx.strokeStyle = '#8a6a4a';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // 田垄
+    ctx.strokeStyle = 'rgba(138,106,74,0.55)';
+    ctx.lineWidth = 2;
+    for (let i = 1; i < 5; i++) {
+      const fx = x + (f.w / 5) * i;
+      ctx.beginPath();
+      ctx.moveTo(fx, y + 5);
+      ctx.lineTo(fx, y + f.h - 5);
+      ctx.stroke();
+    }
+
+    // ---- 作物：3 列 × 2 行 ----
+    if (farm.planted) {
+      for (let r = 0; r < 2; r++) {
+        for (let c = 0; c < 3; c++) {
+          const cx = x + f.w * (0.22 + c * 0.28);
+          const cy = y + f.h * (0.36 + r * 0.34);
+          drawCrop(cx, cy, farm.growth, farm.ready);
+        }
+      }
+    }
+
+    // ---- 成熟提示：上面跳一个小箭头 ----
+    if (farm.ready) {
+      const ay = y - 12 + Math.sin(t * 4) * 3;
+      ctx.fillStyle = '#4a3a2a';
+      ctx.beginPath();
+      ctx.moveTo(f.x, ay + 7);
+      ctx.lineTo(f.x - 7, ay - 3);
+      ctx.lineTo(f.x + 7, ay - 3);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  /** 一株作物：茎 + 两片叶，成熟后加一颗金色穗子 */
+  function drawCrop(cx, cy, growth, ready) {
+    const s = 0.35 + Math.min(1, growth) * 0.75;
+    const hgt = 17 * s;
+    const lw = 7 * s;
+
+    ctx.strokeStyle = ready ? '#b98a2a' : '#4f8a3d';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy - hgt);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - hgt * 0.5);
+    ctx.quadraticCurveTo(cx - lw, cy - hgt * 0.75, cx - lw * 0.4, cy - hgt * 0.95);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - hgt * 0.72);
+    ctx.quadraticCurveTo(cx + lw, cy - hgt * 0.92, cx + lw * 0.4, cy - hgt * 1.1);
+    ctx.stroke();
+
+    if (ready) {
+      ctx.fillStyle = '#e8b23f';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - hgt - 3, 4, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#b98a2a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  /** 工作台：两条腿 + 一块台面 + 台面上的工具 */
+  function drawBench() {
+    const x = world.bench.x;
+    const y = world.bench.y;
+
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 1, 22, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 桌腿
+    ctx.strokeStyle = '#8a6a4a';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y);
+    ctx.lineTo(x - 11, y - 18);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 14, y);
+    ctx.lineTo(x + 11, y - 18);
+    ctx.stroke();
+
+    // 台面
+    ctx.fillStyle = '#c8a377';
+    roundRectPath(x - 21, y - 25, 42, 9, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#4a3a2a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 台面上的锯子
+    ctx.strokeStyle = '#7d7d74';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 9, y - 27);
+    ctx.lineTo(x + 9, y - 27);
+    ctx.stroke();
+  }
+
+  /** 树：影子 + 树干 + 手绘树冠 */
+  function drawTree(ent) {
+    const x = ent.x;
+    const y = ent.y;
+    const r = ent.r;
+
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 1, r * 0.8, r * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 树干：两条手绘竖线
+    ctx.strokeStyle = '#a9784c';
+    ctx.lineWidth = Math.max(3, r * 0.17);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.09, y);
+    ctx.lineTo(x - r * 0.13, y - r * 0.95);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + r * 0.09, y);
+    ctx.lineTo(x + r * 0.13, y - r * 0.95);
+    ctx.stroke();
+
+    // 树冠：几个手绘圆叠在一起
+    for (const c of ent.canopy) {
+      ctx.fillStyle = c.tone === 0 ? '#6fae5a' : '#95cf74';
+      smoothPath(c.pts, x + c.ox, y + c.oy);
+      ctx.fill();
+      if (c.tone === 0) {
+        ctx.strokeStyle = '#3f6f38';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+  }
+
+  /** 石头：影子 + 手绘多边形 + 一道高光 */
+  function drawRock(ent) {
+    const x = ent.x;
+    const y = ent.y;
+    const r = ent.r;
+
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.35, r * 1.05, r * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#c9c9c0';
+    smoothPath(ent.pts, x, y - r * 0.5);
+    ctx.fill();
+    ctx.strokeStyle = '#7d7d74';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.36, y - r * 0.92);
+    ctx.lineTo(x + r * 0.04, y - r * 1.12);
+    ctx.stroke();
+  }
+
+  /** 角色：影子 + 腿 + 身体 + 头 + 眼睛，走动时上下起伏、左右翻转 */
+  function drawPlayer() {
+    const p = state.player;
+    const x = p.x;
+    const y = p.y;
+    const bob = p.moving ? Math.sin(p.bob) * 1.8 : 0;
+    const swing = p.moving ? Math.sin(p.bob) * 4 : 0;
+
+    ctx.fillStyle = 'rgba(40,60,30,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 1, 11, 4.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 腿
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - 3.5, y - 8);
+    ctx.lineTo(x - 3.5 + swing, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 3.5, y - 8);
+    ctx.lineTo(x + 3.5 - swing, y);
+    ctx.stroke();
+
+    // 身体
+    ctx.fillStyle = '#e8814f';
+    ctx.beginPath();
+    ctx.ellipse(x, y - 15 + bob, 7.5, 8.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#b25f36';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // 头
+    const hy = y - 28 + bob;
+    ctx.fillStyle = '#f7cba4';
+    ctx.beginPath();
+    ctx.arc(x, hy, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // 头发
+    ctx.fillStyle = '#5b4636';
+    ctx.beginPath();
+    ctx.ellipse(x, hy - 5.4, 7.2, 4.2, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+
+    // 眼睛（朝着走的方向偏一点，配合左右翻转）
+    ctx.fillStyle = INK;
+    const ex = p.facing * 1.2;
+    ctx.beginPath();
+    ctx.arc(x - 2.6 + ex, hy - 0.4, 1.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + 2.6 + ex, hy - 0.4, 1.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 做好石斧后，角色手边就多一把小斧头
+    if (state.hasAxe) {
+      drawAxe(x + 11 * p.facing, y - 18 + bob, 0.85, p.facing * 0.3, p.facing);
+    }
+  }
+
+  /** 小斧头图标（石斧） */
+  function drawAxe(cx, cy, scale, angle, facing) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.scale(scale * facing, scale);
+
+    // 木柄
+    ctx.strokeStyle = '#a9784c';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 12);
+    ctx.lineTo(0, -10);
+    ctx.stroke();
+
+    // 石斧头
+    ctx.fillStyle = '#c9c9c0';
+    ctx.beginPath();
+    ctx.moveTo(-3, -11);
+    ctx.lineTo(8, -14);
+    ctx.lineTo(10, -4);
+    ctx.lineTo(-3, -2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#75756c';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /** 贴着资源采集时，角色头顶画一圈进度环 */
+  function drawContactProgress() {
+    const c = state.contact;
+    if (!c.target || !c.target.alive) return;
+
+    const need = state.hasAxe ? CONTACT_TIME_AXE : CONTACT_TIME_BARE;
+    const k = Math.min(1, c.t / need);
+    const p = state.player;
+    const cx = p.x;
+    const cy = p.y - 44;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(74,58,42,0.28)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#e8b23f';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** 钓鱼：从角色手里拉一根线到水面的浮漂 */
+  function drawFishingLine(t) {
+    if (!state.fishing.active) return;
+
+    const p = state.player;
+    const pond = world.pond;
+    const dx = p.x - pond.x;
+    const dy = p.y - pond.y;
+    const len = Math.hypot(dx, dy) || 1;
+
+    // 浮漂落在水塘里靠近角色的一侧，随时间轻轻浮动
+    const bx = pond.x + (dx / len) * pond.rx * 0.5;
+    const by = pond.y + (dy / len) * pond.ry * 0.5 + Math.sin(t * 3) * 1.5;
+
+    const rodX = p.x + p.facing * 10;
+    const rodY = p.y - 34;
+
+    // 钓竿
+    ctx.strokeStyle = '#8a6a4a';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 20);
+    ctx.lineTo(rodX, rodY);
+    ctx.stroke();
+
+    // 鱼线
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(rodX, rodY);
+    ctx.quadraticCurveTo((rodX + bx) / 2, rodY - 16, bx, by);
+    ctx.stroke();
+
+    // 浮漂
+    ctx.fillStyle = '#fffcf0';
+    ctx.beginPath();
+    ctx.arc(bx, by, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e05c4a';
+    ctx.beginPath();
+    ctx.arc(bx, by - 1.5, 2.6, Math.PI, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(74,58,42,0.7)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(bx, by, 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 水纹
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 1.4;
+    const rr = 6 + (t * 12) % 12;
+    ctx.beginPath();
+    ctx.ellipse(bx, by + 1, rr, rr * 0.42, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  /** 采集 / 收获时飘起来的 "+1" */
+  function drawFloats() {
+    if (!state.floats.length) return;
+    ctx.save();
+    ctx.font = 'bold 16px ' + FONT;
+    for (const f of state.floats) {
+      ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.6));
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(255,252,240,0.92)';
+      ctx.strokeText(f.text, f.x, f.y);
+      ctx.fillStyle = INK;
+      ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.restore();
+  }
+
+  /** 主绘制：按 y 坐标排序，形成简单的前后遮挡关系 */
+  function render() {
+    const t = state.time;
+
+    drawSea(t);
+    drawIsland();
+    drawPond(t);
+    drawFarm(t);          // 农田画在地面层
+    drawContactProgress();
+
+    const list = [];
+    for (const tr of state.trees) if (tr.alive) list.push(tr);
+    for (const rk of state.rocks) if (rk.alive) list.push(rk);
+    if (state.hasBench) list.push({ kind: 'bench', x: world.bench.x, y: world.bench.y });
+    list.push({ kind: 'player', x: state.player.x, y: state.player.y });
+    list.sort((a, b) => a.y - b.y);
+
+    for (const e of list) {
+      if (e.kind === 'tree') drawTree(e);
+      else if (e.kind === 'rock') drawRock(e);
+      else if (e.kind === 'bench') drawBench();
+      else drawPlayer();
+    }
+
+    drawFishingLine(t);
+    drawFloats();
+  }
+
+  // ==================================================================
+  // 6. 虚拟摇杆
+  // ==================================================================
+  let joyPointerId = null;
+
+  /** 摇杆底盘的中心点和半径（每次按下重新算，避免旋转屏幕后错位） */
+  function joyCenter() {
+    const r = joystickEl.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 };
+  }
+
+  /**
+   * 根据手指位置更新摇杆输出
+   * 结果写进 state.joy：nx / ny 是"方向 × 力度"，mag 是力度 0..1
+   */
+  function joyUpdate(clientX, clientY) {
+    const c = joyCenter();
+    const dx = clientX - c.x;
+    const dy = clientY - c.y;
+    const maxOffset = c.r * 0.52;              // 小圆最多能偏离多远
+    const len = Math.hypot(dx, dy);
+    const mag = Math.min(len / maxOffset, 1);
+
+    let ux = 0;
+    let uy = 0;
+    if (len > 0.001) {
+      ux = dx / len;
+      uy = dy / len;
+    }
+
+    state.joy.nx = ux * mag;
+    state.joy.ny = uy * mag;
+    state.joy.mag = mag;
+
+    // 小圆跟着手指走（超出范围就贴着边缘）
+    const kx = ux * mag * maxOffset;
+    const ky = uy * mag * maxOffset;
+    knobEl.style.transform = 'translate(' + kx.toFixed(1) + 'px, ' + ky.toFixed(1) + 'px)';
+  }
+
+  /** 松开摇杆：小圆回中间，输出归零，角色停在原地 */
+  function joyReset() {
+    joyPointerId = null;
+    joystickEl.classList.remove('active');
+    state.joy.nx = 0;
+    state.joy.ny = 0;
+    state.joy.mag = 0;
+    knobEl.style.transform = 'translate(0px, 0px)';
+  }
+
+  joystickEl.addEventListener('pointerdown', e => {
+    if (state.gameOver) return;
+    e.preventDefault();
+    if (joyPointerId !== null) return;
+    joyPointerId = e.pointerId;
+    try { joystickEl.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+    joystickEl.classList.add('active');
+    joyUpdate(e.clientX, e.clientY);
+    hideHint();
+  });
+
+  joystickEl.addEventListener('pointermove', e => {
+    if (e.pointerId !== joyPointerId) return;
+    e.preventDefault();
+    joyUpdate(e.clientX, e.clientY);
+  });
+
+  joystickEl.addEventListener('pointerup', e => {
+    if (e.pointerId !== joyPointerId) return;
+    e.preventDefault();
+    joyReset();
+  });
+
+  joystickEl.addEventListener('pointercancel', e => {
+    if (e.pointerId !== joyPointerId) return;
+    joyReset();
+  });
+
+  // ==================================================================
+  // 7. 游戏逻辑
+  // ==================================================================
+
+  /** 在资源位置冒出一个向上飘的文字 */
+  function addFloat(x, y, text) {
+    state.floats.push({ x: x, y: y, text: text, life: 0.9 });
+  }
+
+  /** 采集一棵树 / 一块石头 */
+  function harvest(ent) {
+    if (!ent || !ent.alive || state.gameOver) return;
+
+    ent.alive = false;
+    state.contact.target = null;
+    state.contact.t = 0;
+
+    if (ent.kind === 'tree') {
+      state.wood += 1;
+      showToast('木材 +1');
+      addFloat(ent.x, ent.y - ent.r * 1.5, '+1');
+    } else {
+      state.stone += 1;
+      showToast('石头 +1');
+      addFloat(ent.x, ent.y - ent.r * 1.2, '+1');
+    }
+
+    syncResourceUI();
+    syncCraftMenu();
+  }
+
+  /** 找出角色脚下贴着的树或石头（碰到即触发） */
+  function findContactTarget() {
+    const p = state.player;
+    let best = null;
+    let bestD = Infinity;
+    const list = state.trees.concat(state.rocks);
+
+    for (const e of list) {
+      if (!e.alive) continue;
+      const d = Math.hypot(p.x - e.x, p.y - e.y);
+      const reach = e.r * 0.75 + PLAYER_R + 6;
+      if (d <= reach && d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  /** 每帧处理"贴着资源"的逻辑：累计接触时间，够了就自动采集 */
+  function updateContact(dt) {
+    if (state.fishing.active) {
+      state.contact.target = null;
+      state.contact.t = 0;
+      return;
+    }
+
+    const target = findContactTarget();
+    if (target !== state.contact.target) {
+      state.contact.target = target;
+      state.contact.t = 0;
+    }
+    if (!target) return;
+
+    state.contact.t += dt;
+    const need = state.hasAxe ? CONTACT_TIME_AXE : CONTACT_TIME_BARE;
+    if (state.contact.t >= need) harvest(target);
+  }
+
+  /** 摇杆驱动角色移动：按方向和力度前进，撞到海 / 水塘就停住 */
+  function updatePlayer(dt) {
+    const p = state.player;
+    const nx = state.joy.nx;
+    const ny = state.joy.ny;
+    const mag = state.joy.mag;
+
+    if (state.gameOver || state.fishing.active || mag < 0.08) {
+      p.moving = false;
+      return;
+    }
+
+    const speed = PLAYER_SPEED * mag;
+    const mx = nx * speed * dt;
+    const my = ny * speed * dt;
+
+    // 分轴移动：撞到不可走的地方时只停住那个方向，可以贴着岸边滑动
+    if (isWalkable(p.x + mx, p.y)) p.x += mx;
+    if (isWalkable(p.x, p.y + my)) p.y += my;
+
+    // 左右翻转朝向
+    if (nx > 0.12) p.facing = 1;
+    else if (nx < -0.12) p.facing = -1;
+
+    p.moving = true;
+    p.bob += dt * (6 + 10 * mag);
+  }
+
+  /** 开始钓鱼（需要站在水边） */
+  function startFishing() {
+    if (state.gameOver || state.fishing.active) return;
+    if (!isNearPond(state.player.x, state.player.y)) {
+      showToast('要先走到水边');
+      return;
+    }
+    state.fishing.active = true;
+    state.fishing.t = 0;
+    state.contact.target = null;
+    state.contact.t = 0;
+    fishPanelEl.classList.add('show');
+    fishFillEl.style.width = '0%';
+    syncActionUI();
+  }
+
+  /** 钓鱼完成：鱼 +1，饥饿 +20 */
+  function finishFishing() {
+    state.fishing.active = false;
+    state.fishing.t = 0;
+    fishPanelEl.classList.remove('show');
+
+    state.fish += 1;
+    state.hunger = Math.min(HUNGER_MAX, state.hunger + FISH_HUNGER);
+
+    showToast('鱼 +1 · 饥饿 +' + FISH_HUNGER);
+    addFloat(state.player.x, state.player.y - 46, '+1');
+
+    syncResourceUI();
+    syncHungerUI();
+  }
+
+  /** 农田：建造 / 播种 / 收获，根据当前状态自动决定做哪一步 */
+  function farmAction() {
+    const f = state.farm;
+
+    // 1) 还没建：需要工作台 + 木材石头
+    if (!f.built) {
+      if (!state.hasBench) {
+        showToast('要先做好工作台');
+        return;
+      }
+      if (state.wood < WOOD_COST_FARM || state.stone < STONE_COST_FARM) {
+        showToast('材料不足：木材 ' + WOOD_COST_FARM + ' · 石头 ' + STONE_COST_FARM);
+        return;
+      }
+      state.wood -= WOOD_COST_FARM;
+      state.stone -= STONE_COST_FARM;
+      f.built = true;
+      showToast('农田建好了');
+      syncResourceUI();
+      syncCraftMenu();
+      return;
+    }
+
+    // 2) 建好了但没种：播种
+    if (!f.planted) {
+      f.planted = true;
+      f.growth = 0;
+      f.ready = false;
+      showToast('已播种 · ' + FARM_GROW_TIME + ' 秒后成熟');
+      return;
+    }
+
+    // 3) 成熟了：收获
+    if (f.ready) {
+      f.planted = false;
+      f.growth = 0;
+      f.ready = false;
+      state.food += 1;
+      showToast('食物 +1');
+      addFloat(world.farm.x, world.farm.y - 30, '+1');
+      syncResourceUI();
+      return;
+    }
+
+    // 4) 还在长：提示剩余时间
+    const left = Math.ceil(FARM_GROW_TIME * (1 - f.growth));
+    showToast('作物还需 ' + left + ' 秒');
+  }
+
+  /** 吃鱼 / 吃食物，恢复饥饿度 */
+  function eat(kind) {
+    if (state.gameOver) return;
+
+    if (state.hunger >= HUNGER_MAX - 0.5) {
+      showToast('还不饿');
+      return;
+    }
+
+    if (kind === 'fish') {
+      if (state.fish <= 0) { showToast('还没有鱼'); return; }
+      state.fish -= 1;
+      state.hunger = Math.min(HUNGER_MAX, state.hunger + EAT_FISH_HUNGER);
+      showToast('吃了一条鱼 · 饥饿 +' + EAT_FISH_HUNGER);
+    } else {
+      if (state.food <= 0) { showToast('还没有食物'); return; }
+      state.food -= 1;
+      state.hunger = Math.min(HUNGER_MAX, state.hunger + EAT_FOOD_HUNGER);
+      showToast('吃了一份食物 · 饥饿 +' + EAT_FOOD_HUNGER);
+    }
+
+    syncResourceUI();
+    syncHungerUI();
+  }
+
+  /** 饥饿度耗尽：弹出"游戏结束"，并停掉所有操作 */
+  function endGame() {
+    if (state.gameOver) return;
+    state.gameOver = true;
+
+    state.fishing.active = false;
+    fishPanelEl.classList.remove('show');
+    state.contact.target = null;
+    state.contact.t = 0;
+    state.player.moving = false;
+    joyReset();
+    closeCraftMenu();
+
+    overlayEl.classList.add('show');
+    syncActionUI();
+  }
+
+  /** 每帧更新：饥饿、钓鱼、作物、移动、贴脸采集 */
+  function update(dt) {
+    state.time += dt;   // 时间一直走，水波和虚线才继续动
+
+    // 飘字动画（结束后也让它自然飘完）
+    for (let i = state.floats.length - 1; i >= 0; i--) {
+      const f = state.floats[i];
+      f.life -= dt;
+      f.y -= 26 * dt;
+      if (f.life <= 0) state.floats.splice(i, 1);
+    }
+
+    if (state.gameOver) return;   // 游戏结束后一切停止
+
+    // 1) 饥饿度随时间缓慢下降
+    state.hunger = Math.max(0, state.hunger - HUNGER_DRAIN * dt);
+    syncHungerUI();
+    if (state.hunger <= 0) {
+      endGame();
+      return;
+    }
+
+    // 2) 钓鱼进度
+    if (state.fishing.active) {
+      state.fishing.t += dt;
+      const k = Math.min(1, state.fishing.t / FISH_DURATION);
+      fishFillEl.style.width = (k * 100).toFixed(1) + '%';
+      if (state.fishing.t >= FISH_DURATION) finishFishing();
+    }
+
+    // 3) 农田生长
+    const farm = state.farm;
+    if (farm.built && farm.planted && !farm.ready) {
+      farm.growth = Math.min(1, farm.growth + dt / FARM_GROW_TIME);
+      if (farm.growth >= 1) {
+        farm.ready = true;
+        showToast('作物成熟了');
+      }
+    }
+
+    // 4) 摇杆移动 + 贴脸采集
+    updatePlayer(dt);
+    updateContact(dt);
+
+    // 5) 互动按钮随情境变化
+    syncActionUI();
+  }
+
+  // ==================================================================
+  // 8. 界面同步（数值和按钮状态实时更新）
+  // ==================================================================
+
+  function syncResourceUI() {
+    woodNumEl.textContent = state.wood;
+    stoneNumEl.textContent = state.stone;
+    fishNumEl.textContent = state.fish;
+    foodNumEl.textContent = state.food;
+
+    // 没有存货时，"吃"标签变灰
+    fishChipEl.classList.toggle('empty', state.fish <= 0);
+    foodChipEl.classList.toggle('empty', state.food <= 0);
+  }
+
+  function syncHungerUI() {
+    const ratio = state.hunger / HUNGER_MAX;
+    hungerFillEl.style.width = (ratio * 100).toFixed(1) + '%';
+    hungerFillEl.style.background =
+      ratio > 0.5 ? '#7cc26b' : (ratio > 0.25 ? '#e8b23f' : '#e05c4a');
+  }
+
+  /** 左上角弹一下提示文字 */
+  function showToast(text) {
+    toastEl.textContent = text;
+    toastEl.classList.remove('show');
+    void toastEl.offsetWidth;   // 强制重排，让动画能重新播放
+    toastEl.classList.add('show');
+  }
+
+  function hideHint() {
+    if (hintEl) hintEl.classList.add('hide');
+  }
+
+  // ---------- 制作菜单 ----------
+
+  /** 刷新两条配方按钮的可用状态和成本显示 */
+  function syncCraftMenu() {
+    // 石斧
+    if (state.hasAxe) {
+      craftAxeBtn.disabled = true;
+      craftAxeBtn.textContent = '已装备';
+    } else {
+      craftAxeBtn.disabled = state.wood < WOOD_COST_AXE;
+      craftAxeBtn.textContent = '制作';
+    }
+    axeCostEl.innerHTML = '木材 ' + costSpan(state.wood, WOOD_COST_AXE, '×' + WOOD_COST_AXE);
+
+    // 工作台
+    if (state.hasBench) {
+      craftBenchBtn.disabled = true;
+      craftBenchBtn.textContent = '已建造';
+    } else {
+      craftBenchBtn.disabled =
+        state.wood < WOOD_COST_BENCH || state.stone < STONE_COST_BENCH;
+      craftBenchBtn.textContent = '制作';
+    }
+    benchCostEl.innerHTML = '木材 ' +
+      costSpan(state.wood, WOOD_COST_BENCH, '×' + WOOD_COST_BENCH) +
+      ' · 石头 ' + costSpan(state.stone, STONE_COST_BENCH, '×' + STONE_COST_BENCH);
+  }
+
+  /** 材料不够时把数字标红 */
+  function costSpan(have, need, text) {
+    return have >= need ? text : '<span class="lack">' + text + '</span>';
+  }
+
+  function openCraftMenu() {
+    if (state.gameOver) return;
+    syncCraftMenu();
+    craftMenuEl.classList.add('show');
+  }
+
+  function closeCraftMenu() {
+    craftMenuEl.classList.remove('show');
+  }
+
+  /** 制作：石斧 / 工作台 */
+  function craft(kind) {
+    if (state.gameOver) return;
+
+    if (kind === 'axe') {
+      if (state.hasAxe) return;
+      if (state.wood < WOOD_COST_AXE) { showToast('木材不够'); return; }
+      state.wood -= WOOD_COST_AXE;
+      state.hasAxe = true;
+      showToast('石斧做好了 · 采集更快');
+    } else {
+      if (state.hasBench) return;
+      if (state.wood < WOOD_COST_BENCH || state.stone < STONE_COST_BENCH) {
+        showToast('材料不够');
+        return;
+      }
+      state.wood -= WOOD_COST_BENCH;
+      state.stone -= STONE_COST_BENCH;
+      state.hasBench = true;
+      showToast('工作台建好了 · 可以建农田了');
+    }
+
+    syncResourceUI();
+    syncCraftMenu();
+  }
+
+  // ---------- 右下角互动按钮 ----------
+
+  const ACTION_ICONS = {
+    chop:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21 L15 9"/><path d="M12 4 q6 -2 8 4 q-5 3 -9 1 z" fill="#fff8e6" stroke="none"/></svg>',
+    mine:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21 L12 8"/><path d="M3 9 q9 -7 18 0"/></svg>',
+    fish:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L14 5"/><path d="M14 5 q5 5 2 10"/><circle cx="17" cy="18" r="1.8" fill="#fff8e6" stroke="none"/></svg>',
+    build: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20 L13 10"/><path d="M11 3 h8 v6 h-8 z" fill="#fff8e6" stroke="none"/></svg>',
+    plant: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21 L12 11"/><path d="M12 13 q-7 -1 -7 -7 q7 0 7 6"/><path d="M12 12 q7 -1 7 -7 q-7 0 -7 6"/></svg>',
+    take:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 h16 l-2 9 h-12 z"/><path d="M8 11 q4 -8 8 0"/></svg>'
+  };
+
+  /**
+   * 当前情境：决定右下角按钮显示什么
+   * 优先级：贴着的资源 > 农田 > 水边
+   */
+  function getContext() {
+    const p = state.player;
+
+    // 钓鱼过程中不显示其它互动按钮
+    if (state.fishing.active) return null;
+
+    // 贴着的树 / 石头
+    const near = (state.contact.target && state.contact.target.alive)
+      ? state.contact.target
+      : findContactTarget();
+    if (near) {
+      return near.kind === 'tree'
+        ? { icon: 'chop', label: '砍树', type: 'harvest', ent: near, enabled: true }
+        : { icon: 'mine', label: '挖矿', type: 'harvest', ent: near, enabled: true };
+    }
+
+    // 农田
+    if (isNearFarm(p.x, p.y)) {
+      const f = state.farm;
+      if (!f.built) {
+        const can = state.hasBench &&
+                    state.wood >= WOOD_COST_FARM && state.stone >= STONE_COST_FARM;
+        return { icon: 'build', label: '建农田', type: 'farm', enabled: can };
+      }
+      if (!f.planted) {
+        return { icon: 'plant', label: '播种', type: 'farm', enabled: true };
+      }
+      if (f.ready) {
+        return { icon: 'take', label: '收获', type: 'farm', enabled: true };
+      }
+      return null;   // 生长中不显示按钮
+    }
+
+    // 水边
+    if (isNearPond(p.x, p.y) && !state.fishing.active) {
+      return { icon: 'fish', label: '钓鱼', type: 'fish', enabled: true };
+    }
+
+    return null;
+  }
+
+  /** 刷新右下角按钮（带缓存，避免每帧写 DOM） */
+  function syncActionUI() {
+    const c = state.gameOver ? null : getContext();
+    const key = c ? c.label + '|' + (c.enabled ? '1' : '0') : '';
+
+    if (key === state.actionKey) return;
+    state.actionKey = key;
+
+    if (!c) {
+      actionBtn.classList.remove('show');
+      return;
+    }
+
+    actionIcon.innerHTML = ACTION_ICONS[c.icon];
+    actionLabel.textContent = c.label;
+    actionBtn.classList.toggle('dim', !c.enabled);
+    actionBtn.classList.add('show');
+  }
+
+  /** 点右下角按钮：按当前情境执行 */
+  function doAction() {
+    if (state.gameOver) return;
+    const c = getContext();
+    if (!c) return;
+
+    if (c.type === 'harvest') {
+      harvest(c.ent);           // 有石斧就是"点一下秒采集"
+    } else if (c.type === 'fish') {
+      startFishing();
+    } else if (c.type === 'farm') {
+      farmAction();
+    }
+    state.actionKey = '';       // 强制下一帧刷新按钮
+    syncActionUI();
+  }
+
+  // ==================================================================
+  // 9. 事件绑定
+  // ==================================================================
+  actionBtn.addEventListener('click', doAction);
+  fishChipEl.addEventListener('click', () => eat('fish'));
+  foodChipEl.addEventListener('click', () => eat('food'));
+
+  craftOpenBtn.addEventListener('click', () => {
+    if (craftMenuEl.classList.contains('show')) closeCraftMenu();
+    else openCraftMenu();
+  });
+  craftCloseEl.addEventListener('click', closeCraftMenu);
+  craftMenuEl.addEventListener('click', e => {
+    if (e.target === craftMenuEl) closeCraftMenu();   // 点空白处关闭
+  });
+  craftAxeBtn.addEventListener('click', () => craft('axe'));
+  craftBenchBtn.addEventListener('click', () => craft('bench'));
+
+  restartBtn.addEventListener('click', restart);
+
+  // ==================================================================
+  // 10. 重开一局
+  // ==================================================================
+  function resetPlayer() {
+    const p = state.player;
+    p.x = world.island.cx;
+    p.y = world.island.cy;
+    p.moving = false;
+    p.bob = 0;
+    p.facing = 1;
+    joyReset();
+  }
+
+  function restart() {
+    state.wood = 0;
+    state.stone = 0;
+    state.fish = 0;
+    state.food = 0;
+    state.hunger = HUNGER_MAX;
+    state.hasAxe = false;
+    state.hasBench = false;
+    state.gameOver = false;
+    state.floats = [];
+    state.contact.target = null;
+    state.contact.t = 0;
+    state.fishing.active = false;
+    state.fishing.t = 0;
+    state.farm.built = false;
+    state.farm.planted = false;
+    state.farm.growth = 0;
+    state.farm.ready = false;
+    state.actionKey = '';
+
+    buildEntities();     // 树和石头全部长回来
+    layoutWorld();
+    resetPlayer();
+
+    overlayEl.classList.remove('show');
+    fishPanelEl.classList.remove('show');
+    actionBtn.classList.remove('show');
+    closeCraftMenu();
+    syncResourceUI();
+    syncHungerUI();
+    syncCraftMenu();
+    syncActionUI();
+  }
+
+  // ==================================================================
+  // 11. 启动
+  // ==================================================================
+  let lastTime = 0;
+
+  function loop(ts) {
+    if (!lastTime) lastTime = ts;
+    let dt = (ts - lastTime) / 1000;
+    lastTime = ts;
+    dt = Math.min(dt, 0.05);   // 切到后台再回来时，防止一帧跳太多
+
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function init() {
+    buildEntities();
+    resize();
+    resetPlayer();
+
+    syncResourceUI();
+    syncHungerUI();
+    syncCraftMenu();
+    syncActionUI();
+
+    window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
+    document.addEventListener('visibilitychange', () => { lastTime = 0; });
+
+    setTimeout(hideHint, 7000);   // 提示文字过几秒自己淡出
+
+    requestAnimationFrame(loop);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
