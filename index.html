@@ -813,7 +813,7 @@
 
   // 昼夜循环
   const DAY_LENGTH   = 120;   // 一整天的秒数（白天约 45 秒，夜晚约 30 秒）
-  const DAY_START    = 0.30;  // 开局时刻：0 = 午夜，0.30 ≈ 早上七点
+  const DAY_START    = 0.36;  // 开局时刻：0 = 午夜，0.36 ≈ 早上九点（一开局就是大白天）
   const DUSK_AT      = 0.66;  // 从这一刻开始天暗下来，会提示一次"天要黑了"
   const NIGHT_HUNGER = 0.18;  // 夜里饥饿额外加快的比例（0.18 = 快 18%）
 
@@ -1038,11 +1038,11 @@
     return pondDistance(x, y) < 1.75;
   }
 
-  /** 角色是否站在农田附近 */
+  /** 角色是否站在农田附近（范围收得比较紧，免得站在岛中间就弹出农田按钮） */
   function isNearFarm(x, y) {
     const f = world.farm;
-    return Math.abs(x - f.x) < f.w / 2 + 26 &&
-           Math.abs(y - f.y) < f.h / 2 + 26;
+    return Math.abs(x - f.x) < f.w / 2 + 14 &&
+           Math.abs(y - f.y) < f.h / 2 + 14;
   }
 
   // ==================================================================
