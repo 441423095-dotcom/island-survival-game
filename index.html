@@ -73,6 +73,7 @@
   .chip .dot.stone { background: #c9c9c0; border-radius: 50%; }
   .chip .dot.fish  { background: #8fd6e8; border-radius: 50% 50% 50% 2px; }
   .chip .dot.food  { background: #e8b23f; border-radius: 50%; }
+  .chip .dot.cooked { background: #d9873f; border-radius: 50% 50% 50% 2px; }
 
   .chip .num {
     min-width: 16px;
@@ -303,6 +304,17 @@
   #actionBtn:active { transform: scale(0.94); box-shadow: 0 1px 0 rgba(74, 58, 42, 0.55); }
   #actionBtn.dim { background: #8b8175; }
 
+  /* 鱼咬钩的那一下：按钮变亮并轻轻跳动，提示"现在点！" */
+  #actionBtn.hot {
+    background: #e8a33f;
+    border-color: #7a4a1e;
+    animation: hotPulse 0.42s ease-in-out infinite alternate;
+  }
+  @keyframes hotPulse {
+    from { box-shadow: 0 4px 0 rgba(74, 58, 42, 0.55), 0 0 0 0 rgba(255, 216, 120, 0.7); }
+    to   { box-shadow: 0 4px 0 rgba(74, 58, 42, 0.55), 0 0 0 12px rgba(255, 216, 120, 0); }
+  }
+
   .a-icon { width: 26px; height: 26px; display: block; }
   .a-icon svg { width: 100%; height: 100%; display: block; }
   .a-label { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
@@ -365,6 +377,14 @@
   }
   #fishFill { height: 100%; width: 0%; background: #5fa9bd; }
 
+  /* 鱼咬钩：面板变成暖色，进度条开始倒数 */
+  #fishPanel.bite {
+    border-color: #b8672a;
+    box-shadow: 0 3px 0 rgba(184, 103, 42, 0.35);
+  }
+  #fishPanel.bite .fp-label { color: #b8672a; }
+  #fishPanel.bite #fishFill { background: #e8a33f; }
+
   /* ---------- 制作菜单 ---------- */
   #craftMenu {
     position: absolute;
@@ -382,6 +402,9 @@
   .sheet {
     width: 100%;
     max-width: 460px;
+    max-height: 84vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 18px);
     background: #fffcf0;
     border-top: 3px solid #4a3a2a;
@@ -454,6 +477,8 @@
 
   .r-cost { font-size: 12px; font-weight: 600; color: #8a7860; }
   .r-cost .lack { color: #c2452f; }
+
+  .r-desc { margin-top: 2px; font-size: 11px; line-height: 1.4; color: #a8998a; }
 
   .r-btn {
     -webkit-appearance: none;
@@ -616,6 +641,12 @@
       <span class="num" id="foodNum">0</span>
       <span class="tag">吃</span>
     </div>
+    <div class="chip eat" id="cookedChip">
+      <span class="dot cooked"></span>
+      <span>熟鱼</span>
+      <span class="num" id="cookedNum">0</span>
+      <span class="tag">吃</span>
+    </div>
     <div id="toast"></div>
   </div>
 
@@ -642,9 +673,9 @@
     </button>
   </div>
 
-  <!-- 钓鱼进度条 -->
+  <!-- 钓鱼状态条：等待时显示"等鱼咬钩"，咬钩后变成倒数的收杆窗口 -->
   <div id="fishPanel">
-    <div class="fp-label">钓鱼中…</div>
+    <div class="fp-label" id="fishLabel">等鱼咬钩…</div>
     <div class="fp-bar"><div id="fishFill"></div></div>
   </div>
 
@@ -662,7 +693,7 @@
   <!-- 底部中间：制作 -->
   <button id="craftOpenBtn">制作</button>
 
-  <!-- 制作菜单 -->
+  <!-- 制作菜单：配方由 JS 从 RECIPES 表生成，加新配方只要改那张表 -->
   <div id="craftMenu">
     <div class="sheet">
       <div class="sheet-head">
@@ -670,38 +701,9 @@
         <button class="sheet-close" id="craftCloseBtn">关闭</button>
       </div>
 
-      <div class="recipe">
-        <div class="r-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M7 21 L15 8"/>
-            <path d="M12 4 q6 -2 8 4 q-5 3 -9 1 z" fill="#c9c9c0"/>
-          </svg>
-        </div>
-        <div class="r-info">
-          <div class="r-name">石斧</div>
-          <div class="r-cost" id="axeCost">木材 ×3</div>
-        </div>
-        <button class="r-btn" id="craftAxeBtn">制作</button>
-      </div>
+      <div id="recipeList"></div>
 
-      <div class="recipe">
-        <div class="r-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 12 h18"/>
-            <path d="M6 12 v8"/><path d="M18 12 v8"/>
-            <path d="M9 12 v-5 h7 v5" fill="#c8a377"/>
-          </svg>
-        </div>
-        <div class="r-info">
-          <div class="r-name">工作台</div>
-          <div class="r-cost" id="benchCost">木材 ×5 · 石头 ×3</div>
-        </div>
-        <button class="r-btn" id="craftBenchBtn">制作</button>
-      </div>
-
-      <p class="sheet-tip">工作台建好后，才能在岛右侧的空地上建造农田。</p>
+      <p class="sheet-tip">工作台建好后才能在岛右侧建农田；篝火能烤鱼，也能照亮夜晚。</p>
       <button class="sheet-reset" id="sheetResetBtn">重新开始</button>
     </div>
   </div>
@@ -715,7 +717,7 @@
     </div>
   </div>
 
-  <div id="hint">拖动左下角摇杆移动 · 碰到树木石头自动采集</div>
+  <div id="hint">拖动左下角摇杆移动 · 碰到树木石头自动采集 · 水边可以钓鱼</div>
 </div>
 <script type="module">
   // 触感反馈：这个文件由 App 生成，只有在 App 里才有 Taptic 引擎
@@ -740,8 +742,10 @@
   const stoneNumEl   = document.getElementById('stoneNum');
   const fishNumEl    = document.getElementById('fishNum');
   const foodNumEl    = document.getElementById('foodNum');
+  const cookedNumEl  = document.getElementById('cookedNum');
   const fishChipEl   = document.getElementById('fishChip');
   const foodChipEl   = document.getElementById('foodChip');
+  const cookedChipEl = document.getElementById('cookedChip');
   const hungerFillEl = document.getElementById('hungerFill');
   const toastEl      = document.getElementById('toast');
   const hintEl       = document.getElementById('hint');
@@ -755,14 +759,12 @@
 
   const fishPanelEl = document.getElementById('fishPanel');
   const fishFillEl  = document.getElementById('fishFill');
+  const fishLabelEl = document.getElementById('fishLabel');
 
   const craftOpenBtn  = document.getElementById('craftOpenBtn');
   const craftMenuEl   = document.getElementById('craftMenu');
   const craftCloseEl  = document.getElementById('craftCloseBtn');
-  const craftAxeBtn   = document.getElementById('craftAxeBtn');
-  const craftBenchBtn = document.getElementById('craftBenchBtn');
-  const axeCostEl     = document.getElementById('axeCost');
-  const benchCostEl   = document.getElementById('benchCost');
+  const recipeListEl  = document.getElementById('recipeList');
 
   const overlayEl  = document.getElementById('overlay');
   const restartBtn = document.getElementById('restartBtn');
@@ -801,11 +803,18 @@
   const WOOD_COST_FARM   = 4;  // 农田：木材 4
   const STONE_COST_FARM  = 2;  // 农田：石头 2
 
-  const FISH_DURATION   = 3;   // 钓鱼等待秒数
-  const FISH_HUNGER     = 20;  // 钓到鱼当场恢复的饥饿
+  // 钓鱼：不再是"等 3 秒自动上鱼"，而是等鱼咬钩、抓住时机收杆
+  const FISH_WAIT_MIN   = 1.8;  // 没鱼竿：最短等待（秒）
+  const FISH_WAIT_MAX   = 3.6;  // 没鱼竿：最长等待
+  const FISH_WINDOW     = 0.95; // 没鱼竿：咬钩后能收杆的时间窗口
+  const ROD_WAIT_MIN    = 1.1;  // 有鱼竿：咬钩更快
+  const ROD_WAIT_MAX    = 2.3;
+  const ROD_WINDOW      = 1.35; // 有鱼竿：窗口更宽，更不容易失手
+
   const FARM_GROW_TIME  = 30;  // 作物长成秒数
-  const EAT_FISH_HUNGER = 20;  // 吃一条鱼恢复的饥饿
+  const EAT_FISH_HUNGER = 20;  // 吃一条生鱼恢复的饥饿
   const EAT_FOOD_HUNGER = 25;  // 吃一份食物恢复的饥饿
+  const EAT_COOKED_HUNGER = 45;// 吃一条烤鱼恢复的饥饿（比生鱼划算很多）
 
   // 碰到资源多久后自动采集（做出石斧后几乎秒采）
   const CONTACT_TIME_BARE = 0.8;
@@ -818,8 +827,8 @@
   const NIGHT_HUNGER = 0.18;  // 夜里饥饿额外加快的比例（0.18 = 快 18%）
 
   // 资源再生：被采掉的树和石头过一段时间会自己长回来
-  const REGROW_TREE = 80;     // 树桩长回一棵树（秒）
-  const REGROW_ROCK = 62;     // 碎石长回一块石头（秒）
+  const REGROW_TREE = 70;     // 树桩长回一棵树（秒）
+  const REGROW_ROCK = 55;     // 碎石长回一块石头（秒）
 
   // 树的位置：用相对屏幕的比例坐标保存，不同尺寸的手机上都能落在岛上
   // 一共 14 棵，够做石斧 + 工作台 + 农田（合计 12 木材）
@@ -841,11 +850,16 @@
   const state = {
     wood: 0,             // 木材
     stone: 0,            // 石头
-    fish: 0,             // 鱼（可点击食用）
+    fish: 0,             // 生鱼（可点击食用）
     food: 0,             // 食物（可点击食用）
+    cooked: 0,           // 烤鱼（吃下去最顶饱）
     hunger: HUNGER_MAX,  // 饥饿度，降到 0 游戏结束
-    hasAxe: false,       // 是否做好了石斧
-    hasBench: false,     // 是否建好了工作台（解锁农田）
+    hasAxe: false,       // 石斧：砍树一下就好
+    hasPick: false,      // 石镐：挖石头一下就好，而且多得 1 个
+    hasBench: false,     // 工作台（解锁农田）
+    hasCampfire: false,  // 篝火：可以烤鱼，夜里照亮
+    hasTorch: false,     // 火把：夜里的照明范围更大
+    hasRod: false,       // 木鱼竿：鱼咬钩更快、收杆窗口更宽
     gameOver: false,     // 是否已经结束
     time: 0,             // 累计时间（秒），驱动各种小动画
 
@@ -864,7 +878,13 @@
 
     contact: { target: null, t: 0, beat: 0 }, // 贴着的资源 + 已接触时长 + 已响过的凿击次数
 
-    fishing: { active: false, t: 0 },// 钓鱼进度
+    fishing: {                 // 钓鱼小游戏
+      active: false,           // 是否在钓
+      phase: 'idle',           // idle 空闲 / wait 等咬钩 / bite 咬钩了
+      t: 0,                    // 当前阶段已经过去多少秒
+      wait: 0,                 // 这次要等多久才咬钩
+      window: FISH_WINDOW      // 咬钩后能收杆的时间窗口
+    },
 
     farm: {              // 农田
       built: false,      // 是否已经建好
@@ -891,6 +911,7 @@
     pond:   { x: 0, y: 0, rx: 0, ry: 0, blob: [] },
     farm:   { x: 0, y: 0, w: 0, h: 0 },   // 农田中心 + 宽高
     bench:  { x: 0, y: 0 },               // 工作台位置
+    campfire: { x: 0, y: 0 },             // 篝火位置
     waves: [],                  // 海面波浪
     tufts: []                   // 草地上的小草簇
   };
@@ -1045,6 +1066,22 @@
            Math.abs(y - f.y) < f.h / 2 + 14;
   }
 
+  /** 角色是否站在篝火旁边（可以烤鱼） */
+  function isNearCampfire(x, y) {
+    const c = world.campfire;
+    return Math.hypot(x - c.x, y - c.y) < 48;
+  }
+
+  /**
+   * 采集某棵树 / 石头需要贴着多久
+   * 有对应的工具就是"一下就好"，否则要磨一会儿
+   */
+  function contactNeed(ent) {
+    if (ent && ent.kind === 'tree' && state.hasAxe) return CONTACT_TIME_AXE;
+    if (ent && ent.kind === 'rock' && state.hasPick) return CONTACT_TIME_AXE;
+    return CONTACT_TIME_BARE;
+  }
+
   // ==================================================================
   // 4. 世界布局（响应屏幕尺寸）
   // ==================================================================
@@ -1134,6 +1171,10 @@
     // ---- 工作台：建好后出现在农田下方 ----
     world.bench.x = W * 0.66;
     world.bench.y = H * 0.72;
+
+    // ---- 篝火：建好后出现在岛心偏上一点，开局走两步就能用到 ----
+    world.campfire.x = W * 0.50;
+    world.campfire.y = H * 0.43;
 
     // ---- 海面波浪：只放在小岛外面的海里 ----
     world.waves = [];
@@ -1422,6 +1463,64 @@
     }
   }
 
+  /** 篝火：一圈石头 + 交叉的木柴 + 跳动的火苗 */
+  function drawCampfire() {
+    const x = world.campfire.x;
+    const y = world.campfire.y;
+    const t = state.time;
+
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 1, 24, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 围一圈石头
+    ctx.fillStyle = '#c9c9c0';
+    ctx.strokeStyle = '#7d7d74';
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 7; i++) {
+      const ang = (i / 7) * Math.PI * 2 + 0.4;
+      const sx = x + Math.cos(ang) * 17;
+      const sy = y + Math.sin(ang) * 7;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, 4.2, 3.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // 交叉的木柴
+    ctx.strokeStyle = '#8a6a4a';
+    ctx.lineWidth = 3.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - 9, y + 2);
+    ctx.lineTo(x + 9, y - 5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 9, y + 2);
+    ctx.lineTo(x - 9, y - 5);
+    ctx.stroke();
+
+    // 火苗：两层跳动的水滴形
+    const flick = Math.sin(t * 9) * 0.14 + Math.sin(t * 15.7) * 0.07;
+    const h1 = 20 * (1 + flick);
+    const h2 = 12 * (1 + flick * 1.4);
+
+    ctx.fillStyle = 'rgba(240,140,60,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 6 - h1);
+    ctx.quadraticCurveTo(x + 9, y - 12, x, y - 2);
+    ctx.quadraticCurveTo(x - 9, y - 12, x, y - 6 - h1);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,214,110,0.98)';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 6 - h2);
+    ctx.quadraticCurveTo(x + 5.5, y - 11, x, y - 3);
+    ctx.quadraticCurveTo(x - 5.5, y - 11, x, y - 6 - h2);
+    ctx.fill();
+  }
+
   /** 工作台：两条腿 + 一块台面 + 台面上的工具 */
   function drawBench() {
     const x = world.bench.x;
@@ -1696,6 +1795,39 @@
     if (state.hasAxe) {
       drawAxe(x + 11 * p.facing, y - 18 + bob, 0.85, p.facing * 0.3, p.facing);
     }
+
+    // 有火把时，天黑了会亮起来
+    if (state.hasTorch && dayPhase(state.clock).dark > 0.25) {
+      drawTorch(x - 11 * p.facing, y - 22 + bob, state.time);
+    }
+  }
+
+  /** 角色手里的火把：一根木柄 + 一点跳动的火苗 */
+  function drawTorch(cx, cy, t) {
+    const flick = Math.sin(t * 11) * 0.18 + Math.sin(t * 19) * 0.08;
+
+    ctx.strokeStyle = '#8a6a4a';
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 9);
+    ctx.lineTo(cx, cy - 5);
+    ctx.stroke();
+
+    const h = 8 * (1 + flick);
+    ctx.fillStyle = 'rgba(240,150,60,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 5 - h);
+    ctx.quadraticCurveTo(cx + 4.5, cy - 7, cx, cy - 3);
+    ctx.quadraticCurveTo(cx - 4.5, cy - 7, cx, cy - 5 - h);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,224,130,0.98)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 5 - h * 0.6);
+    ctx.quadraticCurveTo(cx + 2.4, cy - 6.5, cx, cy - 3.5);
+    ctx.quadraticCurveTo(cx - 2.4, cy - 6.5, cx, cy - 5 - h * 0.6);
+    ctx.fill();
   }
 
   /** 小斧头图标（石斧） */
@@ -1735,7 +1867,7 @@
     const c = state.contact;
     if (!c.target || !c.target.alive) return;
 
-    const need = state.hasAxe ? CONTACT_TIME_AXE : CONTACT_TIME_BARE;
+    const need = contactNeed(c.target);
     const k = Math.min(1, c.t / need);
     const p = state.player;
     const cx = p.x;
@@ -1756,9 +1888,10 @@
     ctx.restore();
   }
 
-  /** 钓鱼：从角色手里拉一根线到水面的浮漂 */
+  /** 钓鱼：钓竿 + 鱼线 + 浮漂；鱼咬钩时浮漂沉下去并收紧一圈倒计时环 */
   function drawFishingLine(t) {
-    if (!state.fishing.active) return;
+    const f = state.fishing;
+    if (!f.active) return;
 
     const p = state.player;
     const pond = world.pond;
@@ -1766,9 +1899,12 @@
     const dy = p.y - pond.y;
     const len = Math.hypot(dx, dy) || 1;
 
-    // 浮漂落在水塘里靠近角色的一侧，随时间轻轻浮动
+    const biting = f.phase === 'bite';
+
+    // 浮漂落在水塘里靠近角色的一侧：等待时轻轻浮动，咬钩时猛地往下沉
     const bx = pond.x + (dx / len) * pond.rx * 0.5;
-    const by = pond.y + (dy / len) * pond.ry * 0.5 + Math.sin(t * 3) * 1.5;
+    let by = pond.y + (dy / len) * pond.ry * 0.5 + Math.sin(t * 3) * 1.5;
+    if (biting) by += 7 + Math.sin(t * 34) * 1.8;
 
     const rodX = p.x + p.facing * 10;
     const rodY = p.y - 34;
@@ -1782,12 +1918,12 @@
     ctx.lineTo(rodX, rodY);
     ctx.stroke();
 
-    // 鱼线
+    // 鱼线：咬钩时绷紧一点
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.moveTo(rodX, rodY);
-    ctx.quadraticCurveTo((rodX + bx) / 2, rodY - 16, bx, by);
+    ctx.quadraticCurveTo((rodX + bx) / 2, rodY - (biting ? 8 : 16), bx, by);
     ctx.stroke();
 
     // 浮漂
@@ -1805,13 +1941,24 @@
     ctx.arc(bx, by, 4, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 水纹
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-    ctx.lineWidth = 1.4;
-    const rr = 6 + (t * 12) % 12;
-    ctx.beginPath();
-    ctx.ellipse(bx, by + 1, rr, rr * 0.42, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    if (biting) {
+      // 咬钩：一圈从大到小收紧的白环，收完鱼就跑了
+      const k = Math.max(0, 1 - f.t / f.window);
+      const rr = 10 + 30 * k;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + 0.55 * k).toFixed(2) + ')';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.ellipse(bx, by + 1, rr, rr * 0.42, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // 等待时：水面慢慢扩散的水纹
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 1.4;
+      const rr = 6 + (t * 12) % 12;
+      ctx.beginPath();
+      ctx.ellipse(bx, by + 1, rr, rr * 0.42, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   /** 采集 / 收获时飘起来的 "+1" */
@@ -1854,20 +2001,31 @@
     ctx.fillStyle = 'rgba(16,30,56,' + (ph.dark * 0.52).toFixed(3) + ')';
     ctx.fillRect(0, 0, W, H);
 
-    // 角色周围的一圈暖光
-    const p = state.player;
-    const rad = Math.min(W, H) * 0.30;
-    const lx = p.x;
-    const ly = p.y - 8;
-    const g = ctx.createRadialGradient(lx, ly, rad * 0.12, lx, ly, rad);
-    g.addColorStop(0, 'rgba(255,222,150,' + (ph.dark * 0.30).toFixed(3) + ')');
-    g.addColorStop(0.55, 'rgba(255,210,130,' + (ph.dark * 0.10).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(255,210,130,0)');
-
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+
+    // 角色身边的光：有火把时更亮、范围更大
+    const p = state.player;
+    const rad = Math.min(W, H) * (state.hasTorch ? 0.46 : 0.30);
+    lightAt(p.x, p.y - 8, rad, ph.dark * (state.hasTorch ? 0.40 : 0.30));
+
+    // 篝火自己也会照亮一圈，还会跟着火苗轻轻呼吸
+    if (state.hasCampfire) {
+      const c = world.campfire;
+      const flick = 0.9 + Math.sin(state.time * 7) * 0.06 + Math.sin(state.time * 13) * 0.04;
+      lightAt(c.x, c.y - 6, Math.min(W, H) * 0.34 * flick, ph.dark * 0.34 * flick);
+    }
+
     ctx.restore();
+  }
+
+  /** 在夜色上开一扇暖色的"灯"，用来做角色、火把、篝火的光 */
+  function lightAt(x, y, rad, alpha) {
+    const g = ctx.createRadialGradient(x, y, rad * 0.12, x, y, rad);
+    g.addColorStop(0, 'rgba(255,222,150,' + alpha.toFixed(3) + ')');
+    g.addColorStop(0.55, 'rgba(255,210,130,' + (alpha * 0.34).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(255,210,130,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, world.W, world.H);
   }
 
   /** 主绘制：按 y 坐标排序，形成简单的前后遮挡关系 */
@@ -1884,6 +2042,7 @@
     for (const tr of state.trees) list.push(tr);
     for (const rk of state.rocks) list.push(rk);
     if (state.hasBench) list.push({ kind: 'bench', x: world.bench.x, y: world.bench.y });
+    if (state.hasCampfire) list.push({ kind: 'campfire', x: world.campfire.x, y: world.campfire.y });
     list.push({ kind: 'player', x: state.player.x, y: state.player.y });
     list.sort((a, b) => a.y - b.y);
 
@@ -1891,6 +2050,7 @@
       if (e.kind === 'tree') drawTree(e);
       else if (e.kind === 'rock') drawRock(e);
       else if (e.kind === 'bench') drawBench();
+      else if (e.kind === 'campfire') drawCampfire();
       else drawPlayer();
     }
 
@@ -2008,9 +2168,10 @@
       buzz('chop');
     } else {
       ent.regrow = REGROW_ROCK;   // 碎石过一会儿会重新变成石头
-      state.stone += 1;
-      showToast('石头 +1');
-      addFloat(ent.x, ent.y - ent.r * 1.2, '+1');
+      const gain = state.hasPick ? 2 : 1;   // 有石镐一次挖出 2 个石头
+      state.stone += gain;
+      showToast('石头 +' + gain);
+      addFloat(ent.x, ent.y - ent.r * 1.2, '+' + gain);
       sfx('mine');
       buzz('mine');
     }
@@ -2055,7 +2216,7 @@
     if (!target) return;
 
     state.contact.t += dt;
-    const need = state.hasAxe ? CONTACT_TIME_AXE : CONTACT_TIME_BARE;
+    const need = contactNeed(target);
 
     // 采集过程中按节奏响几下轻轻的凿击声，让人知道"正在采"
     const beats = 3;
@@ -2137,41 +2298,133 @@
     p.bob += dt * (6 + 10 * mag);
   }
 
-  /** 开始钓鱼（需要站在水边） */
+  /** 开始钓鱼（需要站在水边）：先甩竿，然后等鱼咬钩 */
   function startFishing() {
     if (state.gameOver || state.fishing.active) return;
     if (!isNearPond(state.player.x, state.player.y)) {
       showToast('要先走到水边');
       return;
     }
-    state.fishing.active = true;
-    state.fishing.t = 0;
+
+    const f = state.fishing;
+    f.active = true;
+    f.phase = 'wait';
+    f.t = 0;
+
+    // 有鱼竿：咬钩更快、收杆窗口更宽，这是做鱼竿的意义
+    const wMin = state.hasRod ? ROD_WAIT_MIN : FISH_WAIT_MIN;
+    const wMax = state.hasRod ? ROD_WAIT_MAX : FISH_WAIT_MAX;
+    f.wait = wMin + Math.random() * (wMax - wMin);
+    f.window = state.hasRod ? ROD_WINDOW : FISH_WINDOW;
+
     state.contact.target = null;
     state.contact.t = 0;
     state.contact.beat = 0;
+
     fishPanelEl.classList.add('show');
+    fishPanelEl.classList.remove('bite');
+    fishLabelEl.textContent = '等鱼咬钩…';
     fishFillEl.style.width = '0%';
+
     sfx('cast');        // 甩竿
     sfx('plop');        // 浮漂入水（内部带一点延迟）
+    state.actionKey = '';
     syncActionUI();
   }
 
-  /** 钓鱼完成：鱼 +1，饥饿 +20 */
-  function finishFishing() {
-    state.fishing.active = false;
-    state.fishing.t = 0;
-    fishPanelEl.classList.remove('show');
+  /**
+   * 结束这次钓鱼
+   * result: 'catch' 钓到 / 'early' 收杆太早 / 'miss' 错过时机
+   */
+  function endFishing(result) {
+    const f = state.fishing;
+    if (!f.active) return;
 
-    state.fish += 1;
-    state.hunger = Math.min(HUNGER_MAX, state.hunger + FISH_HUNGER);
+    f.active = false;
+    f.phase = 'idle';
+    f.t = 0;
 
-    showToast('鱼 +1 · 饥饿 +' + FISH_HUNGER);
-    addFloat(state.player.x, state.player.y - 46, '+1');
-    sfx('catch');       // 上钩的清脆提示音
-    buzz('catch');
+    fishPanelEl.classList.remove('show', 'bite');
+    fishLabelEl.textContent = '等鱼咬钩…';
+    fishFillEl.style.width = '0%';
+
+    if (result === 'catch') {
+      state.fish += 1;
+      showToast('鱼 +1 · 去篝火边烤一下更顶饱');
+      addFloat(state.player.x, state.player.y - 46, '+1');
+      sfx('catch');
+      buzz('catch');
+    } else if (result === 'early') {
+      showToast('收杆太早，鱼被吓跑了');
+      sfx('miss');
+    } else {
+      showToast('鱼跑了…再试一次');
+      sfx('miss');
+    }
 
     syncResourceUI();
-    syncHungerUI();
+    state.actionKey = '';
+    syncActionUI();
+  }
+
+  /** 点「收杆」：咬钩时收杆算成功，提前收就是空杆 */
+  function reel() {
+    const f = state.fishing;
+    if (!f.active) return;
+    if (f.phase === 'bite') endFishing('catch');
+    else endFishing('early');
+  }
+
+  /** 钓鱼推进：等待 → 咬钩 → 窗口内没点就跑了 */
+  function updateFishing(dt) {
+    const f = state.fishing;
+    if (!f.active) return;
+
+    f.t += dt;
+
+    if (f.phase === 'wait') {
+      if (f.t >= f.wait) {
+        // 咬钩了！
+        f.phase = 'bite';
+        f.t = 0;
+        fishPanelEl.classList.add('bite');
+        fishLabelEl.textContent = '咬钩了！点一下收杆';
+        fishFillEl.style.width = '100%';
+        sfx('bite');
+        buzz('bite');
+        state.actionKey = '';   // 让右下角按钮立刻变成「收杆!」
+        syncActionUI();
+      }
+      return;
+    }
+
+    if (f.phase === 'bite') {
+      const k = Math.max(0, 1 - f.t / f.window);
+      fishFillEl.style.width = (k * 100).toFixed(1) + '%';
+      if (f.t >= f.window) endFishing('miss');
+    }
+  }
+
+  /** 在篝火边烤鱼：生鱼 → 熟鱼（恢复的饥饿多一倍） */
+  function cookFish() {
+    if (state.gameOver) return;
+    if (!state.hasCampfire) return;
+
+    if (state.fish < 1) {
+      showToast('还没有鱼可以烤');
+      return;
+    }
+
+    state.fish -= 1;
+    state.cooked += 1;
+
+    showToast('烤好一条鱼 · 熟鱼 +1');
+    addFloat(world.campfire.x, world.campfire.y - 34, '+1');
+    sfx('cook');
+    buzz('craft');
+
+    syncResourceUI();
+    syncCraftMenu();
   }
 
   /** 农田：建造 / 播种 / 收获，根据当前状态自动决定做哪一步 */
@@ -2228,7 +2481,7 @@
     showToast('作物还需 ' + left + ' 秒');
   }
 
-  /** 吃鱼 / 吃食物，恢复饥饿度 */
+  /** 吃鱼 / 吃食物 / 吃烤鱼，恢复饥饿度 */
   function eat(kind) {
     if (state.gameOver) return;
 
@@ -2241,7 +2494,12 @@
       if (state.fish <= 0) { showToast('还没有鱼'); return; }
       state.fish -= 1;
       state.hunger = Math.min(HUNGER_MAX, state.hunger + EAT_FISH_HUNGER);
-      showToast('吃了一条鱼 · 饥饿 +' + EAT_FISH_HUNGER);
+      showToast('吃了一条生鱼 · 饥饿 +' + EAT_FISH_HUNGER);
+    } else if (kind === 'cooked') {
+      if (state.cooked <= 0) { showToast('还没有烤鱼 · 去篝火边烤'); return; }
+      state.cooked -= 1;
+      state.hunger = Math.min(HUNGER_MAX, state.hunger + EAT_COOKED_HUNGER);
+      showToast('吃了一条烤鱼 · 饥饿 +' + EAT_COOKED_HUNGER);
     } else {
       if (state.food <= 0) { showToast('还没有食物'); return; }
       state.food -= 1;
@@ -2260,7 +2518,9 @@
     state.gameOver = true;
 
     state.fishing.active = false;
-    fishPanelEl.classList.remove('show');
+    state.fishing.phase = 'idle';
+    state.fishing.t = 0;
+    fishPanelEl.classList.remove('show', 'bite');
     state.contact.target = null;
     state.contact.t = 0;
     state.player.moving = false;
@@ -2314,13 +2574,8 @@
       saveGame();
     }
 
-    // 4) 钓鱼进度
-    if (state.fishing.active) {
-      state.fishing.t += dt;
-      const k = Math.min(1, state.fishing.t / FISH_DURATION);
-      fishFillEl.style.width = (k * 100).toFixed(1) + '%';
-      if (state.fishing.t >= FISH_DURATION) finishFishing();
-    }
+    // 4) 钓鱼：等待咬钩 → 抓时机收杆
+    if (state.fishing.active) updateFishing(dt);
 
     // 5) 农田生长
     const farm = state.farm;
@@ -2350,10 +2605,12 @@
     stoneNumEl.textContent = state.stone;
     fishNumEl.textContent = state.fish;
     foodNumEl.textContent = state.food;
+    cookedNumEl.textContent = state.cooked;
 
     // 没有存货时，"吃"标签变灰
     fishChipEl.classList.toggle('empty', state.fish <= 0);
     foodChipEl.classList.toggle('empty', state.food <= 0);
+    cookedChipEl.classList.toggle('empty', state.cooked <= 0);
   }
 
   // ---------- 顶部：第几天 + 时段 ----------
@@ -2411,30 +2668,113 @@
 
   // ---------- 制作菜单 ----------
 
-  /** 刷新两条配方按钮的可用状态和成本显示 */
-  function syncCraftMenu() {
-    // 石斧
-    if (state.hasAxe) {
-      craftAxeBtn.disabled = true;
-      craftAxeBtn.textContent = '已装备';
-    } else {
-      craftAxeBtn.disabled = state.wood < WOOD_COST_AXE;
-      craftAxeBtn.textContent = '制作';
+  /**
+   * 配方表：制作菜单就是按这张表生成的
+   * 想加新配方，往数组里加一项就行，不用动界面代码
+   *   id       唯一名字，存档和 craft() 用它
+   *   wood/stone  需要多少材料
+   *   done()   是否已经做过（做过就显示 doneLabel 并且不能再点）
+   *   apply()  真正生效的那一下
+   */
+  const RECIPES = [
+    {
+      id: 'axe', name: '石斧', desc: '贴着树木一下就能砍倒',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21 L15 8"/><path d="M12 4 q6 -2 8 4 q-5 3 -9 1 z" fill="#c9c9c0"/></svg>',
+      wood: WOOD_COST_AXE, stone: 0,
+      done: () => state.hasAxe, doneLabel: '已装备',
+      msg: '石斧做好了 · 砍树更快',
+      apply: () => { state.hasAxe = true; }
+    },
+    {
+      id: 'pick', name: '石镐', desc: '贴着石头一下就能挖开，每次得 2 石头',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21 L14 9"/><path d="M4 9 q8 -7 16 0"/><path d="M4 9 l1.5 3"/><path d="M20 9 l-1.5 3"/></svg>',
+      wood: 3, stone: 3,
+      done: () => state.hasPick, doneLabel: '已装备',
+      msg: '石镐做好了 · 挖矿更快更多',
+      apply: () => { state.hasPick = true; }
+    },
+    {
+      id: 'bench', name: '工作台', desc: '解锁岛右侧的农田',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 h18"/><path d="M6 12 v8"/><path d="M18 12 v8"/><path d="M9 12 v-5 h7 v5" fill="#c8a377"/></svg>',
+      wood: WOOD_COST_BENCH, stone: STONE_COST_BENCH,
+      done: () => state.hasBench, doneLabel: '已建造',
+      msg: '工作台建好了 · 可以建农田了',
+      apply: () => { state.hasBench = true; }
+    },
+    {
+      id: 'campfire', name: '篝火', desc: '夜里照亮周围，还能把生鱼烤熟',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21 h14"/><path d="M7 21 l7-5 7 5" fill="none"/><path d="M12 15 q-3.5-2.5-1-6 q2 2 2.5 0 q3 3.5-1.5 6" fill="#f0a24a"/></svg>',
+      wood: 5, stone: 3,
+      done: () => state.hasCampfire, doneLabel: '已建造',
+      msg: '篝火点起来了 · 靠近可以烤鱼',
+      apply: () => { state.hasCampfire = true; }
+    },
+    {
+      id: 'torch', name: '火把', desc: '夜里的照明范围大一圈',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21 v-9"/><path d="M12 8 q-3-2.5 0-6 q3 3.5 0 6" fill="#f0a24a"/></svg>',
+      wood: 2, stone: 0,
+      done: () => state.hasTorch, doneLabel: '已装备',
+      msg: '火把做好了 · 夜里看得更远',
+      apply: () => { state.hasTorch = true; }
+    },
+    {
+      id: 'rod', name: '木鱼竿', desc: '鱼咬钩更快，收杆窗口也更宽',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21 L15 6"/><path d="M15 6 q4 6 1 11"/><circle cx="17" cy="19.5" r="1.6" fill="#4a3a2a" stroke="none"/></svg>',
+      wood: 3, stone: 1,
+      done: () => state.hasRod, doneLabel: '已装备',
+      msg: '鱼竿做好了 · 钓鱼更顺手',
+      apply: () => { state.hasRod = true; }
     }
-    axeCostEl.innerHTML = '木材 ' + costSpan(state.wood, WOOD_COST_AXE, '×' + WOOD_COST_AXE);
+  ];
 
-    // 工作台
-    if (state.hasBench) {
-      craftBenchBtn.disabled = true;
-      craftBenchBtn.textContent = '已建造';
-    } else {
-      craftBenchBtn.disabled =
-        state.wood < WOOD_COST_BENCH || state.stone < STONE_COST_BENCH;
-      craftBenchBtn.textContent = '制作';
+  const recipeRows = {};   // id → { btn, costEl }，界面上的那一行
+
+  /** 按 RECIPES 生成制作菜单里的每一行（只在启动时跑一次） */
+  function buildCraftRows() {
+    recipeListEl.innerHTML = '';
+
+    for (const r of RECIPES) {
+      const row = document.createElement('div');
+      row.className = 'recipe';
+      row.innerHTML =
+        '<div class="r-icon">' + r.icon + '</div>' +
+        '<div class="r-info">' +
+          '<div class="r-name">' + r.name + '</div>' +
+          '<div class="r-cost"></div>' +
+          '<div class="r-desc">' + r.desc + '</div>' +
+        '</div>' +
+        '<button class="r-btn">制作</button>';
+
+      const btn = row.querySelector('.r-btn');
+      const costEl = row.querySelector('.r-cost');
+      btn.addEventListener('click', () => craft(r.id));
+
+      recipeRows[r.id] = { btn: btn, costEl: costEl };
+      recipeListEl.appendChild(row);
     }
-    benchCostEl.innerHTML = '木材 ' +
-      costSpan(state.wood, WOOD_COST_BENCH, '×' + WOOD_COST_BENCH) +
-      ' · 石头 ' + costSpan(state.stone, STONE_COST_BENCH, '×' + STONE_COST_BENCH);
+  }
+
+  /** 刷新每条配方的按钮状态和材料颜色 */
+  function syncCraftMenu() {
+    for (const r of RECIPES) {
+      const row = recipeRows[r.id];
+      if (!row) continue;
+
+      const done = r.done();
+      const canWood = state.wood >= r.wood;
+      const canStone = state.stone >= r.stone;
+
+      row.btn.textContent = done ? r.doneLabel : '制作';
+      row.btn.disabled = done || !canWood || !canStone;
+
+      let cost = '';
+      if (r.wood > 0) cost += '木材 ' + costSpan(state.wood, r.wood, '×' + r.wood);
+      if (r.stone > 0) {
+        if (cost) cost += ' · ';
+        cost += '石头 ' + costSpan(state.stone, r.stone, '×' + r.stone);
+      }
+      row.costEl.innerHTML = cost;
+    }
   }
 
   /** 材料不够时把数字标红 */
@@ -2452,34 +2792,31 @@
     craftMenuEl.classList.remove('show');
   }
 
-  /** 制作：石斧 / 工作台 */
-  function craft(kind) {
+  /** 制作：查配方表 → 扣材料 → 生效 */
+  function craft(id) {
     if (state.gameOver) return;
 
-    if (kind === 'axe') {
-      if (state.hasAxe) return;
-      if (state.wood < WOOD_COST_AXE) { showToast('木材不够'); return; }
-      state.wood -= WOOD_COST_AXE;
-      state.hasAxe = true;
-      showToast('石斧做好了 · 采集更快');
-      sfx('build');
-      buzz('craft');
-    } else {
-      if (state.hasBench) return;
-      if (state.wood < WOOD_COST_BENCH || state.stone < STONE_COST_BENCH) {
-        showToast('材料不够');
-        return;
-      }
-      state.wood -= WOOD_COST_BENCH;
-      state.stone -= STONE_COST_BENCH;
-      state.hasBench = true;
-      showToast('工作台建好了 · 可以建农田了');
-      sfx('build');
-      buzz('craft');
+    const r = RECIPES.find(x => x.id === id);
+    if (!r) return;
+    if (r.done()) return;
+
+    if (state.wood < r.wood || state.stone < r.stone) {
+      showToast('材料不够');
+      return;
     }
+
+    state.wood -= r.wood;
+    state.stone -= r.stone;
+    r.apply();
+
+    showToast(r.msg);
+    sfx('build');
+    buzz('craft');
 
     syncResourceUI();
     syncCraftMenu();
+    state.actionKey = '';   // 让右下角按钮立刻刷新（篝火建好就能烤鱼了）
+    syncActionUI();
   }
 
   // ---------- 右下角互动按钮 ----------
@@ -2490,18 +2827,29 @@
     fish:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L14 5"/><path d="M14 5 q5 5 2 10"/><circle cx="17" cy="18" r="1.8" fill="#fff8e6" stroke="none"/></svg>',
     build: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20 L13 10"/><path d="M11 3 h8 v6 h-8 z" fill="#fff8e6" stroke="none"/></svg>',
     plant: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21 L12 11"/><path d="M12 13 q-7 -1 -7 -7 q7 0 7 6"/><path d="M12 12 q7 -1 7 -7 q-7 0 -7 6"/></svg>',
-    take:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 h16 l-2 9 h-12 z"/><path d="M8 11 q4 -8 8 0"/></svg>'
+    take:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 h16 l-2 9 h-12 z"/><path d="M8 11 q4 -8 8 0"/></svg>',
+    reel:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 v13"/><path d="M6 12 l6 7 6-7"/></svg>',
+    cook:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14 h16"/><path d="M6 14 q0 6 6 6 q6 0 6 -6"/><path d="M9 10 q1.6 -2 0 -4"/><path d="M14 10 q1.6 -2 0 -4"/></svg>'
   };
 
   /**
    * 当前情境：决定右下角按钮显示什么
-   * 优先级：贴着的资源 > 农田 > 水边
+   * 优先级：钓鱼中 > 贴着的资源 > 篝火 > 农田 > 水边
    */
   function getContext() {
     const p = state.player;
 
-    // 钓鱼过程中不显示其它互动按钮
-    if (state.fishing.active) return null;
+    // 钓鱼中：按钮变成「收杆」，鱼咬钩的那一下会高亮
+    if (state.fishing.active) {
+      const biting = state.fishing.phase === 'bite';
+      return {
+        icon: 'reel',
+        label: biting ? '收杆!' : '收杆',
+        type: 'reel',
+        enabled: true,
+        hot: biting
+      };
+    }
 
     // 贴着的树 / 石头
     const near = (state.contact.target && state.contact.target.alive)
@@ -2511,6 +2859,16 @@
       return near.kind === 'tree'
         ? { icon: 'chop', label: '砍树', type: 'harvest', ent: near, enabled: true }
         : { icon: 'mine', label: '挖矿', type: 'harvest', ent: near, enabled: true };
+    }
+
+    // 篝火：烤鱼
+    if (state.hasCampfire && isNearCampfire(p.x, p.y)) {
+      return {
+        icon: 'cook',
+        label: '烤鱼',
+        type: 'cook',
+        enabled: state.fish > 0
+      };
     }
 
     // 农田
@@ -2541,19 +2899,22 @@
   /** 刷新右下角按钮（带缓存，避免每帧写 DOM） */
   function syncActionUI() {
     const c = state.gameOver ? null : getContext();
-    const key = c ? c.label + '|' + (c.enabled ? '1' : '0') : '';
+    const key = c
+      ? c.label + '|' + (c.enabled ? '1' : '0') + (c.hot ? '|hot' : '')
+      : '';
 
     if (key === state.actionKey) return;
     state.actionKey = key;
 
     if (!c) {
-      actionBtn.classList.remove('show');
+      actionBtn.classList.remove('show', 'hot');
       return;
     }
 
     actionIcon.innerHTML = ACTION_ICONS[c.icon];
     actionLabel.textContent = c.label;
     actionBtn.classList.toggle('dim', !c.enabled);
+    actionBtn.classList.toggle('hot', !!c.hot);
     actionBtn.classList.add('show');
   }
 
@@ -2564,9 +2925,13 @@
     if (!c) return;
 
     if (c.type === 'harvest') {
-      harvest(c.ent);           // 有石斧就是"点一下秒采集"
+      harvest(c.ent);           // 有工具就是"点一下秒采集"
     } else if (c.type === 'fish') {
       startFishing();
+    } else if (c.type === 'reel') {
+      reel();
+    } else if (c.type === 'cook') {
+      cookFish();
     } else if (c.type === 'farm') {
       farmAction();
     }
@@ -2580,6 +2945,7 @@
   actionBtn.addEventListener('click', doAction);
   fishChipEl.addEventListener('click', () => eat('fish'));
   foodChipEl.addEventListener('click', () => eat('food'));
+  cookedChipEl.addEventListener('click', () => eat('cooked'));
 
   craftOpenBtn.addEventListener('click', () => {
     if (craftMenuEl.classList.contains('show')) {
@@ -2597,8 +2963,6 @@
   craftMenuEl.addEventListener('click', e => {
     if (e.target === craftMenuEl) closeCraftMenu();   // 点空白处关闭
   });
-  craftAxeBtn.addEventListener('click', () => craft('axe'));
-  craftBenchBtn.addEventListener('click', () => craft('bench'));
 
   // 音效开关
   soundBtn.addEventListener('click', toggleSound);
@@ -2652,15 +3016,21 @@
     state.stone = 0;
     state.fish = 0;
     state.food = 0;
+    state.cooked = 0;
     state.hunger = HUNGER_MAX;
     state.hasAxe = false;
+    state.hasPick = false;
     state.hasBench = false;
+    state.hasCampfire = false;
+    state.hasTorch = false;
+    state.hasRod = false;
     state.gameOver = false;
     state.floats = [];
     state.contact.target = null;
     state.contact.t = 0;
     state.contact.beat = 0;
     state.fishing.active = false;
+    state.fishing.phase = 'idle';
     state.fishing.t = 0;
     state.farm.built = false;
     state.farm.planted = false;
@@ -2975,6 +3345,22 @@
         playNoise({ freq: 900, to: 1700, dur: 0.18, gain: 0.05, q: 0.8 });
         break;
 
+      case 'bite':      // 鱼咬钩：急促的上行双音，必须一耳朵听出来
+        playTone({ freq: 880, dur: 0.07, type: 'square', gain: 0.10 });
+        playTone({ freq: 1320, dur: 0.09, type: 'square', gain: 0.09, delay: 0.07 });
+        playNoise({ freq: 1600, to: 700, dur: 0.14, gain: 0.10, q: 1.2 });
+        break;
+
+      case 'miss':      // 空杆：下行的一声，有点懊恼
+        playTone({ freq: 400, to: 220, dur: 0.26, type: 'triangle', gain: 0.09 });
+        break;
+
+      case 'cook':      // 烤鱼：油脂的滋滋声
+        playNoise({ freq: 3200, to: 1800, dur: 0.5, gain: 0.07, q: 0.7 });
+        playNoise({ freq: 2400, to: 1400, dur: 0.35, gain: 0.05, q: 0.9, delay: 0.18 });
+        playTone({ freq: 330, dur: 0.22, type: 'sine', gain: 0.07, delay: 0.1 });
+        break;
+
       default:
         break;
     }
@@ -3058,14 +3444,19 @@
       }
 
       const data = {
-        v: 2,
+        v: 3,
         wood: state.wood,
         stone: state.stone,
         fish: state.fish,
         food: state.food,
+        cooked: state.cooked,
         hunger: state.hunger,
         hasAxe: state.hasAxe,
+        hasPick: state.hasPick,
         hasBench: state.hasBench,
+        hasCampfire: state.hasCampfire,
+        hasTorch: state.hasTorch,
+        hasRod: state.hasRod,
         day: state.day,
         clock: state.clock,
         duskWarned: state.duskWarned,
@@ -3119,15 +3510,20 @@
     } catch (e) {
       return false;
     }
-    if (!data || (data.v !== 1 && data.v !== 2)) return false;
+    if (!data || (data.v !== 1 && data.v !== 2 && data.v !== 3)) return false;
 
     state.wood = data.wood || 0;
     state.stone = data.stone || 0;
     state.fish = data.fish || 0;
     state.food = data.food || 0;
+    state.cooked = data.cooked || 0;
     state.hunger = typeof data.hunger === 'number' ? data.hunger : HUNGER_MAX;
     state.hasAxe = !!data.hasAxe;
+    state.hasPick = !!data.hasPick;
     state.hasBench = !!data.hasBench;
+    state.hasCampfire = !!data.hasCampfire;
+    state.hasTorch = !!data.hasTorch;
+    state.hasRod = !!data.hasRod;
 
     // 第几天、当天进度：旧存档没有这些字段就从头开始算
     state.day = data.day || 1;
@@ -3187,6 +3583,8 @@
     buildEntities();
     resize();
     resetPlayer();
+
+    buildCraftRows();   // 按配方表生成制作菜单
 
     // 音效开关是上次的选择
     loadSoundPref();

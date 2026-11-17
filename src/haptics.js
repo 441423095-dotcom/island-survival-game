@@ -25,7 +25,9 @@ export const HAPTICS = {
 
   catch: { events: [{ intensity: 0.45, sharpness: 0.9, time: 0, type: 'transient' }, { intensity: 0.7, sharpness: 0.75, time: 0.11, type: 'transient' }] },
 
-  craft: { events: [{ intensity: 0.55, sharpness: 0.3, time: 0, type: 'transient' }, { intensity: 0.85, sharpness: 0.42, time: 0.13, type: 'transient' }] }
+  craft: { events: [{ intensity: 0.55, sharpness: 0.3, time: 0, type: 'transient' }, { intensity: 0.85, sharpness: 0.42, time: 0.13, type: 'transient' }] },
+
+  bite: { events: [{ intensity: 0.72, sharpness: 0.85, time: 0, type: 'transient' }, { intensity: 0.95, sharpness: 0.7, time: 0.08, type: 'transient' }, { intensity: 0.4, sharpness: 0.95, time: 0.2, type: 'transient' }] }
 };
 
 const channel =
