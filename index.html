@@ -45,20 +45,20 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 7px;
+    gap: 5px;
     pointer-events: none;
   }
 
   .chip {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 5px 11px 5px 9px;
+    gap: 6px;
+    padding: 4px 10px 4px 8px;
     background: rgba(255, 252, 240, 0.94);
     border: 2px solid #4a3a2a;
-    border-radius: 12px;
+    border-radius: 11px;
     box-shadow: 0 3px 0 rgba(74, 58, 42, 0.18);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     color: #4a3a2a;
   }
@@ -72,6 +72,8 @@
   .chip .dot.wood  { background: #a9784c; border-radius: 3px; transform: rotate(-10deg); }
   .chip .dot.stone { background: #c9c9c0; border-radius: 50%; }
   .chip .dot.flint { background: #f0a24a; border-radius: 2px; transform: rotate(45deg); }
+  .chip .dot.shell { background: #f6e8d2; border-radius: 50% 50% 50% 2px; }
+  .chip .dot.berry { background: #c2452f; border-radius: 50%; }
   .chip .dot.fish  { background: #8fd6e8; border-radius: 50% 50% 50% 2px; }
   .chip .dot.food  { background: #e8b23f; border-radius: 50%; }
   .chip .dot.cooked { background: #d9873f; border-radius: 50% 50% 50% 2px; }
@@ -505,6 +507,12 @@
   }
   .r-btn:not(:disabled):active { transform: translateY(3px); box-shadow: 0 0 0 rgba(74, 58, 42, 0.5); }
 
+  /* 还没解锁的配方：整行压暗，按钮显示"未解锁" */
+  .recipe.locked { background: #f1ece1; border-color: #e0d8c8; }
+  .recipe.locked .r-icon { opacity: 0.45; }
+  .recipe.locked .r-name { color: #a89c8a; }
+  .recipe.locked .r-desc { color: #b6ab99; }
+
   .sheet-tip {
     margin: 4px 2px 0;
     font-size: 12px;
@@ -636,6 +644,18 @@
       <span>燧石</span>
       <span class="num" id="flintNum">0</span>
     </div>
+    <div class="chip eat" id="berryChip">
+      <span class="dot berry"></span>
+      <span>浆果</span>
+      <span class="num" id="berryNum">0</span>
+      <span class="tag">吃</span>
+    </div>
+    <div class="chip eat" id="shellChip">
+      <span class="dot shell"></span>
+      <span>贝壳</span>
+      <span class="num" id="shellNum">0</span>
+      <span class="tag">吃</span>
+    </div>
     <div class="chip eat" id="fishChip">
       <span class="dot fish"></span>
       <span>鱼</span>
@@ -710,7 +730,7 @@
 
       <div id="recipeList"></div>
 
-      <p class="sheet-tip">工具用几次就会坏，坏了要重做。燧石只在偶尔冒出来的燧石堆里有，是石镐和火把的关键材料。</p>
+      <p class="sheet-tip">先造工作台，其它配方才会解锁。工具用几次就会坏，坏了要重做。燧石只在偶尔冒出来的燧石堆里有。</p>
       <button class="sheet-reset" id="sheetResetBtn">重新开始</button>
     </div>
   </div>
@@ -724,7 +744,7 @@
     </div>
   </div>
 
-  <div id="hint">拖动左下角摇杆移动 · 碰到树木石头自动采集 · 水边可以钓鱼</div>
+  <div id="hint">拖动摇杆移动 · 碰到东西自动采集 · 南边沙滩捡贝壳 · 草地摘浆果</div>
 </div>
 <script type="module">
   // 触感反馈：这个文件由 App 生成，只有在 App 里才有 Taptic 引擎
@@ -748,6 +768,10 @@
   const woodNumEl    = document.getElementById('woodNum');
   const stoneNumEl   = document.getElementById('stoneNum');
   const flintNumEl   = document.getElementById('flintNum');
+  const berryNumEl   = document.getElementById('berryNum');
+  const shellNumEl   = document.getElementById('shellNum');
+  const berryChipEl  = document.getElementById('berryChip');
+  const shellChipEl  = document.getElementById('shellChip');
   const fishNumEl    = document.getElementById('fishNum');
   const foodNumEl    = document.getElementById('foodNum');
   const cookedNumEl  = document.getElementById('cookedNum');
@@ -829,6 +853,8 @@
   const EAT_FISH_HUNGER = 12;  // 吃一条生鱼恢复的饥饿
   const EAT_FOOD_HUNGER = 18;  // 吃一份食物恢复的饥饿
   const EAT_COOKED_HUNGER = 30;// 吃一条烤鱼恢复的饥饿（比生鱼划算很多）
+  const EAT_BERRY_HUNGER  = 8; // 吃一把浆果恢复的饥饿（前期垫肚子的）
+  const EAT_SHELL_HUNGER  = 10;// 吃一个贝壳恢复的饥饿
 
   // 碰到资源多久后自动采集（做出石斧后几乎秒采）
   const CONTACT_TIME_BARE = 0.8;
@@ -843,6 +869,8 @@
   // 资源再生：慢下来了，砍光一片树林要等很久才恢复
   const REGROW_TREE = 150;    // 树桩长回一棵树（秒）
   const REGROW_ROCK = 120;    // 碎石长回一块石头（秒）
+  const REGROW_SHELL = 55;    // 沙滩上重新冲上来一个贝壳（秒）
+  const REGROW_BERRY = 60;    // 浆果丛重新结果（秒）
 
   // 稀有资源：燧石堆。隔一阵子在岛上随机冒出来一处，采完就消失
   const RARE_WAIT_MIN = 28;   // 两处燧石之间至少隔多少秒
@@ -850,16 +878,25 @@
   const RARE_LIFE     = 45;   // 冒出来后多久没采就自己沉回沙里
 
   // 树的位置：用相对屏幕的比例坐标保存，不同尺寸的手机上都能落在岛上
-  // 一共 14 棵，够做石斧 + 工作台 + 农田（合计 12 木材）
+  // 避开中间的高地和南边的沙滩，不然会被地形挡住够不到
   const TREE_SPOTS = [
-    [0.27, 0.24], [0.50, 0.17], [0.73, 0.24], [0.16, 0.42], [0.36, 0.34],
-    [0.40, 0.80], [0.60, 0.82], [0.86, 0.30], [0.20, 0.60], [0.90, 0.62],
+    [0.27, 0.24], [0.50, 0.17], [0.73, 0.24], [0.16, 0.42], [0.28, 0.40],
+    [0.34, 0.72], [0.56, 0.74], [0.86, 0.30], [0.20, 0.60], [0.90, 0.62],
     [0.10, 0.52], [0.44, 0.62], [0.22, 0.32], [0.84, 0.74]
   ];
   // 石头的位置（同样是比例坐标）
   const ROCK_SPOTS = [
     [0.63, 0.36], [0.30, 0.52], [0.88, 0.44], [0.46, 0.72],
-    [0.16, 0.78], [0.78, 0.80], [0.52, 0.28]
+    [0.16, 0.78], [0.78, 0.80], [0.66, 0.18]
+  ];
+  // 浆果丛的位置：草地上，前期能垫肚子
+  const BERRY_SPOTS = [
+    [0.24, 0.48], [0.38, 0.40], [0.32, 0.20], [0.62, 0.42], [0.52, 0.66]
+  ];
+  // 贝壳的位置：全都在南边那片沙滩上
+  const SHELL_SPOTS = [
+    [0.30, 0.86], [0.38, 0.88], [0.46, 0.85],
+    [0.54, 0.87], [0.62, 0.855], [0.68, 0.83]
   ];
 
   // ==================================================================
@@ -870,6 +907,8 @@
     wood: 0,             // 木材
     stone: 0,            // 石头
     flint: 0,            // 燧石（稀有，只有偶尔出现的燧石堆才有）
+    berry: 0,            // 浆果（草地上采，前期垫肚子）
+    shell: 0,            // 贝壳（南边沙滩上捡，也能吃）
     fish: 0,             // 生鱼（可点击食用）
     food: 0,             // 食物（可点击食用）
     cooked: 0,           // 烤鱼（吃下去最顶饱）
@@ -930,6 +969,8 @@
 
     trees: [],           // 树：{ kind, fx, fy, x, y, r, alive, canopy }
     rocks: [],           // 石头：{ kind, fx, fy, x, y, r, alive, pts }
+    bushes: [],          // 浆果丛：{ kind, fx, fy, x, y, r, ripe, regrow, grow, pts }
+    shells: [],          // 贝壳：{ kind, fx, fy, x, y, r, alive, regrow, grow }
     floats: [],          // 采集时飘起来的 "+1" 文字
 
     heartT: 0,           // 低饥饿时心跳的倒计时
@@ -952,7 +993,9 @@
     dryPatches: [],             // 枯黄的干草地
     cracks: [],                 // 地面裂缝
     debris: [],                 // 散落的残骸：贝壳、枯枝、碎石
-    wreck: { x: 0, y: 0, a: 0 } // 滩上搁浅的破木筏
+    wreck: { x: 0, y: 0, a: 0 },// 滩上搁浅的破木筏
+    beach: { x: 0, y: 0, rx: 0, ry: 0, blob: [] },   // 南边的一片沙滩
+    hill:  { x: 0, y: 0, rx: 0, ry: 0, blob: [], top: [] } // 中间的高地（走不上去）
   };
 
   // ==================================================================
@@ -1080,10 +1123,34 @@
     return nx * nx + ny * ny <= 1;
   }
 
-  /** 角色能不能站在这个点上：岛内的草地，且不在水里 */
+  /** 判断点是否在南边那片沙滩上，k 越大范围越外扩 */
+  function inBeach(x, y, k) {
+    k = k || 1;
+    const b = world.beach;
+    if (!b.rx) return false;
+    const nx = (x - b.x) / (b.rx * k);
+    const ny = (y - b.y) / (b.ry * k);
+    return nx * nx + ny * ny <= 1;
+  }
+
+  /**
+   * 判断点是否在中间那块高地上
+   * 高地是走不上去的岩坡，只能绕着走——这就是地形差带来的走位变化
+   */
+  function inHill(x, y, k) {
+    k = k || 1;
+    const h = world.hill;
+    if (!h.rx) return false;
+    const nx = (x - h.x) / (h.rx * k);
+    const ny = (y - h.y) / (h.ry * k);
+    return nx * nx + ny * ny <= 1;
+  }
+
+  /** 角色能不能站在这个点上：岛内的陆地，不在水里，也不在陡坡上 */
   function isWalkable(x, y) {
     if (!ptInIsland(x, y, 0.94)) return false;
     if (inPond(x, y, 1.12)) return false;   // 水塘不能走进去，只能在岸边钓鱼
+    if (inHill(x, y, 0.96)) return false;   // 高地是陡坡，走不上去
     return true;
   }
 
@@ -1112,12 +1179,15 @@
   }
 
   /**
-   * 采集某棵树 / 石头需要贴着多久
+   * 采集某棵树 / 石头 / 浆果 / 贝壳需要贴着多久
    * 有对应的工具就是"一下就好"，否则要磨一会儿
+   * 浆果和贝壳是徒手就能拿的，很快
    */
   function contactNeed(ent) {
-    if (ent && ent.kind === 'tree' && state.hasAxe) return CONTACT_TIME_AXE;
-    if (ent && ent.kind === 'rock' && state.hasPick) return CONTACT_TIME_AXE;
+    if (!ent) return CONTACT_TIME_BARE;
+    if (ent.kind === 'berry' || ent.kind === 'shell') return 0.45;
+    if (ent.kind === 'tree' && state.hasAxe) return CONTACT_TIME_AXE;
+    if (ent.kind === 'rock' && state.hasPick) return CONTACT_TIME_AXE;
     return CONTACT_TIME_BARE;
   }
 
@@ -1145,6 +1215,27 @@
       grow: 1,
       pts: null,
       seed: 2207 + i * 53
+    }));
+
+    // 浆果丛：丛一直都在，只是结果和不结果的区别
+    state.bushes = BERRY_SPOTS.map((s, i) => ({
+      kind: 'berry', fx: s[0], fy: s[1],
+      x: 0, y: 0, r: 0,
+      ripe: true,       // 现在有没有果子
+      regrow: 0,        // 摘掉之后还要多少秒重新结果
+      grow: 1,
+      pts: null,
+      seed: 3301 + i * 61
+    }));
+
+    // 贝壳：散在南边沙滩上，捡走之后潮水会再冲上来
+    state.shells = SHELL_SPOTS.map((s, i) => ({
+      kind: 'shell', fx: s[0], fy: s[1],
+      x: 0, y: 0, r: 0,
+      alive: true,
+      regrow: 0,
+      grow: 1,
+      seed: 4409 + i * 29
     }));
   }
 
@@ -1201,6 +1292,47 @@
       });
     }
 
+    // ---- 南边的一片沙滩：捡贝壳的地方，地势比草地低一层 ----
+    const beach = world.beach;
+    beach.x = W * 0.46;
+    beach.y = H * 0.845;
+    beach.rx = W * 0.32;
+    beach.ry = H * 0.085;
+
+    const randB = makeRandom(1717);
+    beach.blob = [];
+    for (let i = 0; i < 22; i++) {
+      const ang = (i / 22) * Math.PI * 2;
+      const k = 1 + (randB() * 2 - 1) * 0.06;
+      beach.blob.push({
+        x: beach.x + Math.cos(ang) * beach.rx * k,
+        y: beach.y + Math.sin(ang) * beach.ry * k * (ang > Math.PI ? 1.05 : 0.9)
+      });
+    }
+
+    // ---- 中间的高地：一块走不上去的岩坡，绕过去得花点时间 ----
+    const hill = world.hill;
+    hill.x = W * 0.50;
+    hill.y = H * 0.30;
+    hill.rx = W * 0.165;
+    hill.ry = H * 0.095;
+
+    const randH = makeRandom(2020);
+    hill.blob = [];
+    for (let i = 0; i < 24; i++) {
+      const ang = (i / 24) * Math.PI * 2;
+      const k = 1 + (randH() * 2 - 1) * 0.05;
+      hill.blob.push({
+        x: hill.x + Math.cos(ang) * hill.rx * k,
+        y: hill.y + Math.sin(ang) * hill.ry * k
+      });
+    }
+    // 高地顶面：比底面小一圈，画出来才有"上面还有一层"的感觉
+    hill.top = hill.blob.map(p => ({
+      x: hill.x + (p.x - hill.x) * 0.82,
+      y: hill.y + (p.y - hill.y) * 0.78 - hill.ry * 0.10
+    }));
+
     // ---- 农田：岛右侧留出的一块平地 ----
     const farm = world.farm;
     farm.w = W * 0.30;
@@ -1236,6 +1368,8 @@
       const y = (0.1 + trand() * 0.8) * H;
       if (!ptInIsland(x, y, 0.86)) continue;
       if (inPond(x, y, 1.25)) continue;
+      if (inBeach(x, y, 1.02)) continue;
+      if (inHill(x, y, 1.05)) continue;
       if (Math.abs(x - farm.x) < farm.w / 2 && Math.abs(y - farm.y) < farm.h / 2) continue;
       world.tufts.push({ x: x, y: y, s: 0.7 + trand() * 0.6 });
     }
@@ -1249,6 +1383,8 @@
       const y = (0.14 + drand() * 0.72) * H;
       if (!ptInIsland(x, y, 0.84)) continue;
       if (inPond(x, y, 1.3)) continue;
+      if (inBeach(x, y, 1.05)) continue;
+      if (inHill(x, y, 1.05)) continue;
       const rx = base * (0.05 + drand() * 0.05);
       const ry = rx * (0.45 + drand() * 0.25);
       const pts = circlePts(rx, 0.22, drand).map(p => ({ x: p.x, y: p.y * (ry / rx) }));
@@ -1264,6 +1400,8 @@
       const y = (0.16 + crand() * 0.68) * H;
       if (!ptInIsland(x, y, 0.82)) continue;
       if (inPond(x, y, 1.3)) continue;
+      if (inBeach(x, y, 1.05)) continue;
+      if (inHill(x, y, 1.08)) continue;
       const segs = [];
       let px = x;
       let py = y;
@@ -1288,6 +1426,7 @@
       const y = (0.08 + erand() * 0.84) * H;
       if (!ptInIsland(x, y, 0.97)) continue;
       if (inPond(x, y, 1.2)) continue;
+      if (inHill(x, y, 1.06)) continue;
       const kindRoll = erand();
       const kind = kindRoll < 0.34 ? 'twig'
                  : kindRoll < 0.62 ? 'shell'
@@ -1330,6 +1469,21 @@
       rk.y = rk.fy * H;
       rk.r = Math.max(11, base * 0.040);
       rk.pts = circlePts(rk.r, 0.2, makeRandom(rk.seed));
+    });
+
+    // ---- 浆果丛 ----
+    state.bushes.forEach(b => {
+      b.x = b.fx * W;
+      b.y = b.fy * H;
+      b.r = Math.max(13, base * 0.045);
+      b.pts = circlePts(b.r, 0.16, makeRandom(b.seed));
+    });
+
+    // ---- 贝壳 ----
+    state.shells.forEach(s => {
+      s.x = s.fx * W;
+      s.y = s.fy * H;
+      s.r = Math.max(7, base * 0.020);
     });
 
     // ---- 燧石堆的大小 ----
@@ -1406,6 +1560,12 @@
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // 南边的沙滩（画在草地上，边缘只到草地为止，不会漏进海里）
+    drawBeach();
+
+    // 中间的高地
+    drawHill();
+
     // 枯黄的干草斑块：让草地看起来一块一块地干掉了
     for (const dp of world.dryPatches) {
       ctx.save();
@@ -1446,6 +1606,124 @@
 
     // 搁浅的破木筏
     drawWreck();
+  }
+
+  /**
+   * 南边的沙滩：比草地低一层
+   * 靠草地的一侧画一道暗边（土坎的投影），靠海的一侧画一条浅水线，
+   * 这样一眼就能看出这块地是"下去一层"的
+   */
+  function drawBeach() {
+    const b = world.beach;
+    if (!b.rx) return;
+
+    ctx.save();
+    // 只在草地范围内画沙，沙子才不会溢出岛外
+    smoothPath(world.island.innerBlob);
+    ctx.clip();
+
+    // 土坎投在沙上的影子：把沙的形状往上错一点，先画一层暗色
+    ctx.fillStyle = 'rgba(96,92,60,0.20)';
+    smoothPath(b.blob, 0, -5);
+    ctx.fill();
+
+    // 沙面
+    ctx.fillStyle = '#efe2bd';
+    smoothPath(b.blob);
+    ctx.fill();
+    ctx.strokeStyle = '#d3bd90';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 靠近海那半边是湿沙，颜色深一点
+    ctx.fillStyle = 'rgba(206,186,142,0.55)';
+    smoothPath(b.blob, 0, b.ry * 0.42);
+    ctx.fill();
+
+    // 潮水线：几条很浅的白弧
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const y = b.y + b.ry * (0.30 + i * 0.22);
+      ctx.beginPath();
+      ctx.moveTo(b.x - b.rx * (0.72 - i * 0.16), y);
+      ctx.quadraticCurveTo(b.x, y - 5, b.x + b.rx * (0.72 - i * 0.16), y);
+      ctx.stroke();
+    }
+
+    // 沙里的小碎点，别让沙面太空
+    const rand = makeRandom(9001);
+    ctx.fillStyle = 'rgba(190,168,124,0.55)';
+    for (let i = 0; i < 40; i++) {
+      const ang = rand() * Math.PI * 2;
+      const rr = Math.sqrt(rand()) * 0.9;
+      const x = b.x + Math.cos(ang) * b.rx * rr;
+      const y = b.y + Math.sin(ang) * b.ry * rr;
+      ctx.beginPath();
+      ctx.arc(x, y, 1 + rand() * 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * 中间的高地：一块隆起的岩坡
+   * 画法是"投影 + 坡壁 + 亮一点的顶面 + 坡壁上的竖纹"，
+   * 俯视角下这几层叠起来就有了高低差的感觉
+   */
+  function drawHill() {
+    const h = world.hill;
+    if (!h.rx) return;
+
+    // 投在草地上的影子（往右下偏一点）
+    ctx.fillStyle = 'rgba(58,70,44,0.20)';
+    smoothPath(h.blob, h.rx * 0.05, h.ry * 0.22);
+    ctx.fill();
+
+    // 坡壁：整体偏土黄，和草地拉开色差
+    ctx.fillStyle = '#a9a075';
+    smoothPath(h.blob);
+    ctx.fill();
+    ctx.strokeStyle = '#847a52';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+
+    // 坡壁上的竖纹，暗示这是一面陡坡
+    ctx.strokeStyle = 'rgba(120,108,70,0.45)';
+    ctx.lineWidth = 1.8;
+    for (let i = 0; i < 9; i++) {
+      const ang = Math.PI * (0.10 + i * 0.10);     // 只画朝下那一半
+      const x1 = h.x + Math.cos(ang) * h.rx * 0.94;
+      const y1 = h.y + Math.sin(ang) * h.ry * 0.94;
+      const x2 = h.x + Math.cos(ang) * h.rx * 0.72;
+      const y2 = h.y + Math.sin(ang) * h.ry * 0.60;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    // 顶面：亮一层，像是被太阳照到的平台
+    ctx.fillStyle = '#c3ce94';
+    smoothPath(h.top);
+    ctx.fill();
+    ctx.strokeStyle = '#96a168';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 顶面上几块石头和一小片枯草，别让它像一块平板
+    const rand = makeRandom(4545);
+    ctx.fillStyle = 'rgba(150,158,120,0.55)';
+    for (let i = 0; i < 5; i++) {
+      const ang = rand() * Math.PI * 2;
+      const rr = Math.sqrt(rand()) * 0.7;
+      const x = h.x + Math.cos(ang) * h.rx * 0.70 * rr;
+      const y = h.y + Math.sin(ang) * h.ry * 0.66 * rr - h.ry * 0.10;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 4 + rand() * 4, 3 + rand() * 3, rand(), 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   /** 一小块残骸：枯枝 / 贝壳 / 碎石 / 白骨，都是几笔简笔画 */
@@ -2016,6 +2294,103 @@
   }
 
   /**
+   * 浆果丛：一小丛深绿的灌木，结果的时候上面挂着几颗红果子
+   * 摘完之后丛还在，只是没果子，过一阵子会重新结果
+   */
+  function drawBush(ent) {
+    const x = ent.x;
+    const y = ent.y;
+    const r = ent.r;
+
+    // 影子
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 1, r * 0.85, r * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 灌木本体：几个深绿的小圆叠在一起
+    ctx.fillStyle = '#5f8f4a';
+    smoothPath(ent.pts, x, y - r * 0.55);
+    ctx.fill();
+    ctx.strokeStyle = '#3f6b34';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 上面的小枝
+    ctx.strokeStyle = '#3f6b34';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.1, y - r * 0.55);
+    ctx.lineTo(x - r * 0.35, y - r * 1.05);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + r * 0.12, y - r * 0.55);
+    ctx.lineTo(x + r * 0.38, y - r * 0.98);
+    ctx.stroke();
+
+    // 有果子的时候挂三颗红浆果
+    if (ent.ripe) {
+      const berries = [
+        [-0.30, -0.95],
+        [ 0.10, -1.12],
+        [ 0.38, -0.90]
+      ];
+      for (const b of berries) {
+        const bx = x + b[0] * r;
+        const by = y + b[1] * r;
+        ctx.fillStyle = '#c2452f';
+        ctx.beginPath();
+        ctx.arc(bx, by, r * 0.17, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#8f2f20';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        // 小高光
+        ctx.fillStyle = 'rgba(255,220,210,0.85)';
+        ctx.beginPath();
+        ctx.arc(bx - r * 0.05, by - r * 0.05, r * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  /** 沙滩上的贝壳：一个带放射纹的扇形，很小，但一眼能认出来 */
+  function drawShell(ent) {
+    const x = ent.x;
+    const y = ent.y;
+    const r = ent.r;
+    const g = ent.grow == null ? 1 : ent.grow;
+    const rr = r * g;
+
+    // 沙上的一点影子
+    ctx.fillStyle = 'rgba(120,104,70,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + rr * 0.45, rr * 1.05, rr * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 贝壳本体（半圆扇面）
+    ctx.fillStyle = '#f6e8d2';
+    ctx.strokeStyle = '#c9ab84';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(x, y, rr, Math.PI * 1.06, Math.PI * 1.94);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 放射纹
+    ctx.strokeStyle = 'rgba(201,171,132,0.85)';
+    ctx.lineWidth = 1;
+    for (let i = -2; i <= 2; i++) {
+      const ang = Math.PI * 1.5 + i * 0.30;
+      ctx.beginPath();
+      ctx.moveTo(x, y - rr * 0.15);
+      ctx.lineTo(x + Math.cos(ang) * rr * 0.92, y + Math.sin(ang) * rr * 0.92);
+      ctx.stroke();
+    }
+  }
+
+  /**
    * 稀有的燧石堆：深色石头里嵌着橙色的燧石，表面一闪一闪
    * 只偶尔在岛上冒出来一处，采完就没了
    */
@@ -2226,7 +2601,9 @@
   /** 贴着资源采集时，角色头顶画一圈进度环 */
   function drawContactProgress() {
     const c = state.contact;
-    if (!c.target || !c.target.alive) return;
+    if (!c.target) return;
+    // 浆果丛看"有没有果子"，其它资源看"还在不在"
+    if (c.target.kind === 'berry' ? !c.target.ripe : !c.target.alive) return;
 
     const need = contactNeed(c.target);
     const k = Math.min(1, c.t / need);
@@ -2402,6 +2779,8 @@
     // 砍掉的树和挖掉的石头也要画（树桩 / 碎石），所以不再过滤 alive
     for (const tr of state.trees) list.push(tr);
     for (const rk of state.rocks) list.push(rk);
+    for (const b of state.bushes) list.push(b);
+    for (const s of state.shells) if (s.alive) list.push(s);
     if (state.rare.active) list.push({ kind: 'rare', x: state.rare.x, y: state.rare.y });
     if (state.hasBench) list.push({ kind: 'bench', x: world.bench.x, y: world.bench.y });
     if (state.hasCampfire) list.push({ kind: 'campfire', x: world.campfire.x, y: world.campfire.y });
@@ -2411,6 +2790,8 @@
     for (const e of list) {
       if (e.kind === 'tree') drawTree(e);
       else if (e.kind === 'rock') drawRock(e);
+      else if (e.kind === 'berry') drawBush(e);
+      else if (e.kind === 'shell') drawShell(e);
       else if (e.kind === 'rare') drawRare();
       else if (e.kind === 'bench') drawBench();
       else if (e.kind === 'campfire') drawCampfire();
@@ -2513,16 +2894,40 @@
     state.floats.push({ x: x, y: y, text: text, life: 0.9 });
   }
 
-  /** 采集一棵树 / 一块石头 / 一堆燧石 */
+  /**
+   * 采集一棵树 / 一块石头 / 一堆燧石 / 一丛浆果 / 一个贝壳
+   * 注意：浆果丛摘完不会消失，只是没果子了；贝壳捡走会消失，等潮水再冲上来
+   */
   function harvest(ent) {
-    if (!ent || !ent.alive || state.gameOver) return;
+    if (!ent || state.gameOver) return;
+    // 浆果丛看"有没有结果"，其它资源看"还在不在"
+    if (ent.kind === 'berry' ? !ent.ripe : !ent.alive) return;
 
-    ent.alive = false;
     state.contact.target = null;
     state.contact.t = 0;
     state.contact.beat = 0;
 
-    if (ent.kind === 'tree') {
+    if (ent.kind === 'berry') {
+      // 浆果丛：摘掉果子，丛还在
+      ent.ripe = false;
+      ent.regrow = REGROW_BERRY;
+      state.berry += 1;
+      showToast('浆果 +1');
+      addFloat(ent.x, ent.y - ent.r * 1.5, '+1');
+      sfx('berry');
+      buzz('tap');
+
+    } else if (ent.kind === 'shell') {
+      ent.alive = false;
+      ent.regrow = REGROW_SHELL;
+      state.shell += 1;
+      showToast('贝壳 +1');
+      addFloat(ent.x, ent.y - ent.r * 2, '+1');
+      sfx('shell');
+      buzz('tap');
+
+    } else if (ent.kind === 'tree') {
+      ent.alive = false;
       ent.regrow = REGROW_TREE;   // 树桩很久之后才会重新长成树
       state.wood += 1;
       showToast('木材 +1');
@@ -2536,6 +2941,7 @@
       const gain = 1 + (state.hasPick ? 1 : 0);
       state.flint += gain;
       state.rare.active = false;
+      state.rare.alive = false;
       state.rare.life = 0;
       state.rare.wait = RARE_WAIT_MIN + Math.random() * (RARE_WAIT_MAX - RARE_WAIT_MIN);
       showToast('燧石 +' + gain);
@@ -2545,6 +2951,7 @@
       useTool('pick');
 
     } else {
+      ent.alive = false;
       ent.regrow = REGROW_ROCK;   // 碎石很久之后才会重新变成石头
       const gain = state.hasPick ? 2 : 1;   // 有石镐一次挖出 2 个石头
       state.stone += gain;
@@ -2593,20 +3000,42 @@
     }
   }
 
-  /** 找出角色脚下贴着的树、石头或燧石堆（碰到即触发） */
+  /** 找出角色脚下贴着的资源（树、石头、浆果丛、贝壳、燧石堆） */
   function findContactTarget() {
     const p = state.player;
     let best = null;
     let bestD = Infinity;
-    const list = state.trees.concat(state.rocks);
 
-    for (const e of list) {
+    // 树和石头
+    for (const e of state.trees.concat(state.rocks)) {
       if (!e.alive) continue;
       const d = Math.hypot(p.x - e.x, p.y - e.y);
       const reach = e.r * 0.75 + PLAYER_R + 6;
       if (d <= reach && d < bestD) {
         bestD = d;
         best = e;
+      }
+    }
+
+    // 浆果丛：只有结果的时候才算目标
+    for (const b of state.bushes) {
+      if (!b.ripe) continue;
+      const d = Math.hypot(p.x - b.x, p.y - b.y);
+      const reach = b.r * 0.8 + PLAYER_R + 6;
+      if (d <= reach && d < bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+
+    // 贝壳：很小，判定放宽一点才好踩到
+    for (const s of state.shells) {
+      if (!s.alive) continue;
+      const d = Math.hypot(p.x - s.x, p.y - s.y);
+      const reach = s.r + PLAYER_R + 10;
+      if (d <= reach && d < bestD) {
+        bestD = d;
+        best = s;
       }
     }
 
@@ -2688,6 +3117,32 @@
         }
       } else if (e.grow < 1) {
         e.grow = Math.min(1, e.grow + dt * 2.2);
+      }
+    }
+
+    // 贝壳：潮水过一阵子会再冲上来一个
+    for (const s of state.shells) {
+      if (!s.alive) {
+        s.regrow -= dt;
+        if (s.regrow <= 0) {
+          s.regrow = 0;
+          s.alive = true;
+          s.grow = 0;
+        }
+      } else if (s.grow < 1) {
+        s.grow = Math.min(1, s.grow + dt * 2.5);
+      }
+    }
+
+    // 浆果丛：摘掉的果子过一阵子重新长出来
+    for (const b of state.bushes) {
+      if (!b.ripe) {
+        b.regrow -= dt;
+        if (b.regrow <= 0) {
+          b.regrow = 0;
+          b.ripe = true;
+          sfx('regrow');
+        }
       }
     }
 
@@ -2968,7 +3423,7 @@
     showToast('作物还需 ' + left + ' 秒');
   }
 
-  /** 吃鱼 / 吃食物 / 吃烤鱼，恢复饥饿度 */
+  /** 吃浆果 / 贝壳 / 鱼 / 食物 / 烤鱼，恢复饥饿度 */
   function eat(kind) {
     if (state.gameOver) return;
 
@@ -2977,7 +3432,17 @@
       return;
     }
 
-    if (kind === 'fish') {
+    if (kind === 'berry') {
+      if (state.berry <= 0) { showToast('还没有浆果 · 草地上找浆果丛'); return; }
+      state.berry -= 1;
+      state.hunger = Math.min(HUNGER_MAX, state.hunger + EAT_BERRY_HUNGER);
+      showToast('吃了一把浆果 · 饥饿 +' + EAT_BERRY_HUNGER);
+    } else if (kind === 'shell') {
+      if (state.shell <= 0) { showToast('还没有贝壳 · 南边沙滩上捡'); return; }
+      state.shell -= 1;
+      state.hunger = Math.min(HUNGER_MAX, state.hunger + EAT_SHELL_HUNGER);
+      showToast('吃了一个贝壳 · 饥饿 +' + EAT_SHELL_HUNGER);
+    } else if (kind === 'fish') {
       if (state.fish <= 0) { showToast('还没有鱼'); return; }
       state.fish -= 1;
       state.hunger = Math.min(HUNGER_MAX, state.hunger + EAT_FISH_HUNGER);
@@ -3091,11 +3556,15 @@
     woodNumEl.textContent = state.wood;
     stoneNumEl.textContent = state.stone;
     flintNumEl.textContent = state.flint;
+    berryNumEl.textContent = state.berry;
+    shellNumEl.textContent = state.shell;
     fishNumEl.textContent = state.fish;
     foodNumEl.textContent = state.food;
     cookedNumEl.textContent = state.cooked;
 
     // 没有存货时，"吃"标签变灰
+    berryChipEl.classList.toggle('empty', state.berry <= 0);
+    shellChipEl.classList.toggle('empty', state.shell <= 0);
     fishChipEl.classList.toggle('empty', state.fish <= 0);
     foodChipEl.classList.toggle('empty', state.food <= 0);
     cookedChipEl.classList.toggle('empty', state.cooked <= 0);
@@ -3161,15 +3630,27 @@
    * 想加新配方，往数组里加一项就行，不用动界面代码
    *   id          唯一名字，存档和 craft() 用它
    *   wood/stone/flint  需要多少材料
+   *   locked()    是否还没解锁（没解锁就整行压暗，点不了）
    *   done()      是否已经做过（做过就显示 doneLabel 并且不能再点）
    *   note()      做了之后在材料那行额外显示的信息（比如工具耐用度）
    *   apply()     真正生效的那一下
+   *
+   * 解锁顺序：先造工作台，工作台造好之后其它配方才会亮起来
    */
   const RECIPES = [
+    {
+      id: 'bench', name: '工作台', desc: '第一步：造好它，其它配方才会解锁',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 h18"/><path d="M6 12 v8"/><path d="M18 12 v8"/><path d="M9 12 v-5 h7 v5" fill="#c8a377"/></svg>',
+      wood: WOOD_COST_BENCH, stone: STONE_COST_BENCH, flint: 0,
+      done: () => state.hasBench, doneLabel: '已建造',
+      msg: '工作台建好了 · 其它配方已解锁',
+      apply: () => { state.hasBench = true; }
+    },
     {
       id: 'axe', name: '石斧', desc: '砍树一下就好 · 用 ' + AXE_USES + ' 次会坏',
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21 L15 8"/><path d="M12 4 q6 -2 8 4 q-5 3 -9 1 z" fill="#c9c9c0"/></svg>',
       wood: WOOD_COST_AXE, stone: 0, flint: 0,
+      locked: () => !state.hasBench,
       done: () => state.hasAxe, doneLabel: '已装备',
       note: () => state.hasAxe ? '还能砍 ' + state.axeUses + ' 次' : '',
       msg: '石斧做好了 · 砍树更快',
@@ -3179,23 +3660,17 @@
       id: 'pick', name: '石镐', desc: '挖石头一下就好，每次得 2 石头 · 需要燧石做刃',
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21 L14 9"/><path d="M4 9 q8 -7 16 0"/><path d="M4 9 l1.5 3"/><path d="M20 9 l-1.5 3"/></svg>',
       wood: 3, stone: 3, flint: 1,
+      locked: () => !state.hasBench,
       done: () => state.hasPick, doneLabel: '已装备',
       note: () => state.hasPick ? '还能挖 ' + state.pickUses + ' 次' : '',
       msg: '石镐做好了 · 挖矿更快更多',
       apply: () => { state.hasPick = true; state.pickUses = PICK_USES; }
     },
     {
-      id: 'bench', name: '工作台', desc: '解锁岛右侧的农田',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 h18"/><path d="M6 12 v8"/><path d="M18 12 v8"/><path d="M9 12 v-5 h7 v5" fill="#c8a377"/></svg>',
-      wood: WOOD_COST_BENCH, stone: STONE_COST_BENCH, flint: 0,
-      done: () => state.hasBench, doneLabel: '已建造',
-      msg: '工作台建好了 · 可以建农田了',
-      apply: () => { state.hasBench = true; }
-    },
-    {
       id: 'campfire', name: '篝火', desc: '夜里照亮周围，还能把生鱼烤熟',
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21 h14"/><path d="M7 21 l7-5 7 5" fill="none"/><path d="M12 15 q-3.5-2.5-1-6 q2 2 2.5 0 q3 3.5-1.5 6" fill="#f0a24a"/></svg>',
       wood: 5, stone: 3, flint: 0,
+      locked: () => !state.hasBench,
       done: () => state.hasCampfire, doneLabel: '已建造',
       msg: '篝火点起来了 · 靠近可以烤鱼',
       apply: () => { state.hasCampfire = true; }
@@ -3204,6 +3679,7 @@
       id: 'torch', name: '火把', desc: '夜里的照明范围大一圈 · 需要燧石打火',
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21 v-9"/><path d="M12 8 q-3-2.5 0-6 q3 3.5 0 6" fill="#f0a24a"/></svg>',
       wood: 2, stone: 0, flint: 1,
+      locked: () => !state.hasBench,
       done: () => state.hasTorch, doneLabel: '已装备',
       msg: '火把做好了 · 夜里看得更远',
       apply: () => { state.hasTorch = true; }
@@ -3212,13 +3688,14 @@
       id: 'rod', name: '木鱼竿', desc: '鱼咬钩更快，收杆窗口也更宽',
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21 L15 6"/><path d="M15 6 q4 6 1 11"/><circle cx="17" cy="19.5" r="1.6" fill="#4a3a2a" stroke="none"/></svg>',
       wood: 3, stone: 1, flint: 0,
+      locked: () => !state.hasBench,
       done: () => state.hasRod, doneLabel: '已装备',
       msg: '鱼竿做好了 · 钓鱼更顺手',
       apply: () => { state.hasRod = true; }
     }
   ];
 
-  const recipeRows = {};   // id → { btn, costEl }，界面上的那一行
+  const recipeRows = {};   // id → { row, btn, costEl }，界面上的那一行
 
   /** 按 RECIPES 生成制作菜单里的每一行（只在启动时跑一次） */
   function buildCraftRows() {
@@ -3240,7 +3717,7 @@
       const costEl = row.querySelector('.r-cost');
       btn.addEventListener('click', () => craft(r.id));
 
-      recipeRows[r.id] = { btn: btn, costEl: costEl };
+      recipeRows[r.id] = { row: row, btn: btn, costEl: costEl };
       recipeListEl.appendChild(row);
     }
   }
@@ -3250,6 +3727,17 @@
     for (const r of RECIPES) {
       const row = recipeRows[r.id];
       if (!row) continue;
+
+      // 还没解锁：整行压暗，按钮显示"未解锁"
+      const locked = r.locked ? r.locked() : false;
+      row.row.classList.toggle('locked', locked);
+
+      if (locked) {
+        row.btn.textContent = '未解锁';
+        row.btn.disabled = true;
+        row.costEl.innerHTML = '<span class="lack">需要先造工作台</span>';
+        continue;
+      }
 
       const done = r.done();
       const canWood = state.wood >= r.wood;
@@ -3300,6 +3788,10 @@
 
     const r = RECIPES.find(x => x.id === id);
     if (!r) return;
+    if (r.locked && r.locked()) {
+      showToast('要先造好工作台');
+      return;
+    }
     if (r.done()) return;
 
     if (state.wood < r.wood || state.stone < r.stone || state.flint < r.flint) {
@@ -3354,16 +3846,21 @@
       };
     }
 
-    // 贴着的树 / 石头 / 燧石堆
-    const near = (state.contact.target && state.contact.target.alive)
-      ? state.contact.target
-      : findContactTarget();
+    // 贴着的资源：树、石头、浆果丛、贝壳、燧石堆
+    const ct = state.contact.target;
+    const near = (ct && (ct.alive || ct.ripe)) ? ct : findContactTarget();
     if (near) {
       if (near.kind === 'tree') {
         return { icon: 'chop', label: '砍树', type: 'harvest', ent: near, enabled: true };
       }
       if (near.kind === 'rare') {
         return { icon: 'mine', label: '采燧石', type: 'harvest', ent: near, enabled: true };
+      }
+      if (near.kind === 'berry') {
+        return { icon: 'plant', label: '摘浆果', type: 'harvest', ent: near, enabled: true };
+      }
+      if (near.kind === 'shell') {
+        return { icon: 'take', label: '捡贝壳', type: 'harvest', ent: near, enabled: true };
       }
       return { icon: 'mine', label: '挖矿', type: 'harvest', ent: near, enabled: true };
     }
@@ -3450,6 +3947,8 @@
   // 9. 事件绑定
   // ==================================================================
   actionBtn.addEventListener('click', doAction);
+  berryChipEl.addEventListener('click', () => eat('berry'));
+  shellChipEl.addEventListener('click', () => eat('shell'));
   fishChipEl.addEventListener('click', () => eat('fish'));
   foodChipEl.addEventListener('click', () => eat('food'));
   cookedChipEl.addEventListener('click', () => eat('cooked'));
@@ -3522,6 +4021,8 @@
     state.wood = 0;
     state.stone = 0;
     state.flint = 0;
+    state.berry = 0;
+    state.shell = 0;
     state.fish = 0;
     state.food = 0;
     state.cooked = 0;
@@ -3891,6 +4392,16 @@
         playTone({ freq: 300, to: 120, dur: 0.26, type: 'triangle', gain: 0.12 });
         break;
 
+      case 'berry':     // 摘浆果：轻轻一拽
+        playNoise({ freq: 1500, to: 900, dur: 0.09, gain: 0.09, q: 1.4 });
+        playTone({ freq: 900, to: 1200, dur: 0.12, type: 'sine', gain: 0.07, delay: 0.03 });
+        break;
+
+      case 'shell':     // 捡贝壳：沙沙的一下
+        playNoise({ freq: 2600, to: 1400, dur: 0.12, gain: 0.10, q: 1.8 });
+        playTone({ freq: 1500, to: 1900, dur: 0.1, type: 'sine', gain: 0.05, delay: 0.02 });
+        break;
+
       default:
         break;
     }
@@ -3974,13 +4485,15 @@
       }
 
       const data = {
-        v: 4,
+        v: 5,
         wood: state.wood,
         stone: state.stone,
         flint: state.flint,
         fish: state.fish,
         food: state.food,
         cooked: state.cooked,
+        berry: state.berry,
+        shell: state.shell,
         hunger: state.hunger,
         hasAxe: state.hasAxe,
         hasPick: state.hasPick,
@@ -4009,6 +4522,9 @@
         // 每棵树 / 石头：a = 是否还立着，r = 还有多少秒长回来
         trees: state.trees.map(t => ({ a: t.alive ? 1 : 0, r: Math.round(t.regrow * 10) / 10 })),
         rocks: state.rocks.map(r => ({ a: r.alive ? 1 : 0, r: Math.round(r.regrow * 10) / 10 })),
+        // 浆果丛：p = 还有没有果子，贝壳：a = 还在不在
+        bushes: state.bushes.map(b => ({ p: b.ripe ? 1 : 0, r: Math.round(b.regrow * 10) / 10 })),
+        shells: state.shells.map(s => ({ a: s.alive ? 1 : 0, r: Math.round(s.regrow * 10) / 10 })),
         // 位置按屏幕比例存，换设备或旋转屏幕都能落回原来的地方
         px: world.W ? state.player.x / world.W : 0.5,
         py: world.H ? state.player.y / world.H : 0.5
@@ -4050,11 +4566,13 @@
     } catch (e) {
       return false;
     }
-    if (!data || (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4)) return false;
+    if (!data || (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5)) return false;
 
     state.wood = data.wood || 0;
     state.stone = data.stone || 0;
     state.flint = data.flint || 0;
+    state.berry = data.berry || 0;
+    state.shell = data.shell || 0;
     state.fish = data.fish || 0;
     state.food = data.food || 0;
     state.cooked = data.cooked || 0;
@@ -4101,6 +4619,18 @@
     // 新存档存的是 {a, r} 对象，旧存档存的是 0 / 1，两种都认
     restoreEntities(state.trees, data.trees, REGROW_TREE);
     restoreEntities(state.rocks, data.rocks, REGROW_ROCK);
+    restoreEntities(state.shells, data.shells, REGROW_SHELL);
+
+    // 浆果丛：存的是"有没有果子"，不是"还在不在"
+    if (Array.isArray(data.bushes)) {
+      state.bushes.forEach((b, i) => {
+        const d = data.bushes[i];
+        if (d && typeof d === 'object') {
+          b.ripe = !!d.p;
+          b.regrow = b.ripe ? 0 : Math.max(0, Math.min(REGROW_BERRY, d.r || REGROW_BERRY));
+        }
+      });
+    }
 
     // 还原角色位置，落进水里或海里就留在岛心
     const px = (data.px || 0.5) * world.W;
