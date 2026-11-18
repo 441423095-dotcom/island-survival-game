@@ -36,7 +36,7 @@
     display: block;
   }
 
-  /* ---------- 左上角：资源数量 + 提示文字 ---------- */
+  /* ---------- 左上角：背包按钮 + 提示文字 ---------- */
   .hud-left {
     position: absolute;
     left: 0;
@@ -45,9 +45,47 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 5px;
+    gap: 8px;
     pointer-events: none;
   }
+
+  /* 背包按钮：屏幕上唯一常驻的资源入口 */
+  #bagBtn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px 7px 9px;
+    background: rgba(255, 252, 240, 0.94);
+    border: 2px solid #4a3a2a;
+    border-radius: 13px;
+    box-shadow: 0 3px 0 rgba(74, 58, 42, 0.18);
+    color: #4a3a2a;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    pointer-events: auto;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  #bagBtn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(74, 58, 42, 0.18); }
+  #bagBtn svg { width: 20px; height: 20px; display: block; }
+
+  /* 有能吃的东西时，按钮右上角亮一个小点 */
+  #bagDot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid #4a3a2a;
+    background: #7ba85c;
+    display: none;
+  }
+  #bagDot.on { display: block; }
 
   .chip {
     display: flex;
@@ -72,6 +110,8 @@
   .chip .dot.wood  { background: #a9784c; border-radius: 3px; transform: rotate(-10deg); }
   .chip .dot.stone { background: #c9c9c0; border-radius: 50%; }
   .chip .dot.flint { background: #f0a24a; border-radius: 2px; transform: rotate(45deg); }
+  .chip .dot.vine  { background: #4f8a3d; border-radius: 2px 50% 2px 50%; }
+  .chip .dot.iron  { background: #8d9399; border-radius: 3px; }
   .chip .dot.shell { background: #f6e8d2; border-radius: 50% 50% 50% 2px; }
   .chip .dot.berry { background: #c2452f; border-radius: 50%; }
   .chip .dot.fish  { background: #8fd6e8; border-radius: 50% 50% 50% 2px; }
@@ -103,6 +143,83 @@
     margin-left: 1px;
   }
   .chip.eat.empty .tag { background: #b8b0a0; }
+  .chip.eat.empty { opacity: 0.55; }
+
+  /* ---------- 背包面板 ---------- */
+  #bagPanel {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 22px;
+    background: rgba(20, 40, 48, 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+    z-index: 16;
+  }
+  #bagPanel.show { opacity: 1; pointer-events: auto; }
+
+  .bag-sheet {
+    width: min(88vw, 360px);
+    max-height: 82vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px 16px 18px;
+    background: #fffcf0;
+    border: 3px solid #4a3a2a;
+    border-radius: 18px;
+    box-shadow: 0 8px 0 rgba(74, 58, 42, 0.32);
+    transform: translateY(10px);
+    transition: transform 0.2s ease;
+  }
+  #bagPanel.show .bag-sheet { transform: translateY(0); }
+
+  .bag-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .bag-title {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: #4a3a2a;
+  }
+
+  .bag-group {
+    margin: 12px 0 7px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #a09280;
+  }
+  .bag-group .bag-tip {
+    margin-left: 6px;
+    font-size: 10px;
+    letter-spacing: 0;
+    color: #b8ad9a;
+  }
+
+  /* 两列网格：一眼扫完，不再是一长条 */
+  .bag-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+
+  .bag-grid .chip {
+    width: 100%;
+    box-shadow: 0 2px 0 rgba(74, 58, 42, 0.14);
+  }
+
+  .bag-grid .chip .num { margin-left: auto; }
+
+  .bag-grid .chip.eat { cursor: pointer; }
+  .bag-grid .chip.eat:active { transform: scale(0.96); }
 
   /* 采集成功时左上角弹一下的文字 */
   #toast {
@@ -228,6 +345,179 @@
     color: #8a7860;
   }
 
+  /* ---------- 顶部：当前场景名 ---------- */
+  #sceneChip {
+    position: absolute;
+    left: 50%;
+    top: calc(env(safe-area-inset-top, 0px) + 52px);
+    transform: translateX(-50%);
+    padding: 3px 12px;
+    background: rgba(74, 58, 42, 0.72);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #fff8e6;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* ---------- 软引导：一次只显示一个目标 ---------- */
+  #goalChip {
+    position: absolute;
+    left: 50%;
+    top: calc(env(safe-area-inset-top, 0px) + 78px);
+    transform: translateX(-50%);
+    max-width: 78vw;
+    padding: 5px 13px;
+    background: rgba(255, 252, 240, 0.9);
+    border: 2px solid rgba(74, 58, 42, 0.5);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #4a3a2a;
+    text-align: center;
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  #goalChip.show { opacity: 1; }
+
+  /* 完成一个目标时，先闪一下再换下一个 */
+  #goalChip.pop { animation: goalPop 0.6s ease-out; }
+
+  @keyframes goalPop {
+    0%   { transform: translateX(-50%) scale(1); }
+    35%  { transform: translateX(-50%) scale(1.08); background: rgba(220, 240, 200, 0.95); }
+    100% { transform: translateX(-50%) scale(1); }
+  }
+
+  /* ---------- 通关画面 ---------- */
+  #ending {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 30px;
+    background: #0d1116;
+    color: #f4efe2;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease;
+    z-index: 30;
+  }
+  #ending.show { opacity: 1; pointer-events: auto; }
+
+  #ending .e-title {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 8px;
+    color: #8ef0a8;
+  }
+
+  #ending .e-text {
+    margin: 0;
+    max-width: 300px;
+    font-size: 14px;
+    line-height: 2;
+    color: #c9c2b2;
+  }
+
+  #ending .e-sub {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #6f7a72;
+  }
+
+  /* ---------- 日记本面板 ---------- */
+  #diary {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(20, 30, 24, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 18;
+  }
+  #diary.show { opacity: 1; pointer-events: auto; }
+
+  .diary-sheet {
+    width: min(86vw, 340px);
+    padding: 18px 18px 16px;
+    background: #efe6cf;
+    border: 2px solid #8a7450;
+    border-radius: 6px;
+    box-shadow: 0 10px 26px rgba(20, 30, 24, 0.45),
+                inset 0 0 0 4px rgba(255, 252, 240, 0.5);
+    transform: rotate(-0.6deg);
+  }
+
+  .diary-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .diary-title {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: #7a6340;
+  }
+
+  .diary-page {
+    min-height: 132px;
+    margin: 0 0 14px;
+    font-size: 14px;
+    line-height: 1.95;
+    color: #4a3a2a;
+    white-space: pre-wrap;
+  }
+
+  .diary-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .diary-btn {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: #7a6340;
+    padding: 8px 14px;
+    border: 2px solid #c9b78e;
+    border-radius: 9px;
+    background: rgba(255, 252, 240, 0.7);
+  }
+  .diary-btn:disabled { opacity: 0.4; }
+  .diary-btn:not(:disabled):active { transform: translateY(2px); }
+
+  .diary-num {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #a08a60;
+  }
+
   /* ---------- 左下角：虚拟摇杆 ---------- */
   #joystick {
     position: absolute;
@@ -322,12 +612,12 @@
   .a-icon svg { width: 100%; height: 100%; display: block; }
   .a-label { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
 
-  /* ---------- 底部中间：制作按钮 ---------- */
+  /* ---------- 底部中间：制作（只有靠近工作台时才出现） ---------- */
   #craftOpenBtn {
     position: absolute;
     left: 50%;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 30px);
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(8px) scale(0.92);
     -webkit-appearance: none;
     appearance: none;
     font-family: inherit;
@@ -341,17 +631,25 @@
     background: #7ba85c;
     box-shadow: 0 4px 0 #4a3a2a;
     cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
   }
-  #craftOpenBtn:active { transform: translateX(-50%) translateY(3px); box-shadow: 0 1px 0 #4a3a2a; }
+  #craftOpenBtn.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  #craftOpenBtn:active { transform: translateX(-50%) translateY(3px) scale(1); box-shadow: 0 1px 0 #4a3a2a; }
 
-  /* ---------- 钓鱼进度条 ---------- */
+  /* ---------- 钓鱼 QTE：指针来回扫，要在中间绿区里点收杆 ---------- */
   #fishPanel {
     position: absolute;
     left: 50%;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 132px);
     transform: translateX(-50%) translateY(10px);
-    width: min(62vw, 230px);
-    padding: 10px 12px;
+    width: min(72vw, 268px);
+    padding: 10px 12px 8px;
     background: rgba(255, 252, 240, 0.96);
     border: 2px solid #4a3a2a;
     border-radius: 14px;
@@ -360,33 +658,70 @@
     pointer-events: none;
     transition: opacity 0.18s ease, transform 0.18s ease;
   }
-  #fishPanel.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #fishPanel.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
 
   .fp-label {
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 1px;
     color: #4a3a2a;
-    margin-bottom: 6px;
+    margin-bottom: 7px;
     text-align: center;
   }
 
-  .fp-bar {
-    height: 10px;
+  /* 轨道：绿区居中，指针在轨道上来回扫 */
+  .fp-track {
+    position: relative;
+    height: 20px;
     border: 2px solid #4a3a2a;
     border-radius: 999px;
-    background: #f1e7d1;
+    background: #efe5cd;
     overflow: hidden;
   }
-  #fishFill { height: 100%; width: 0%; background: #5fa9bd; }
 
-  /* 鱼咬钩：面板变成暖色，进度条开始倒数 */
-  #fishPanel.bite {
-    border-color: #b8672a;
-    box-shadow: 0 3px 0 rgba(184, 103, 42, 0.35);
+  /* 中间的命中区（绿） */
+  .fp-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, #9ed07a, #6fae5a);
+    border-left: 2px solid #4a7d3c;
+    border-right: 2px solid #4a7d3c;
   }
-  #fishPanel.bite .fp-label { color: #b8672a; }
-  #fishPanel.bite #fishFill { background: #e8a33f; }
+
+  /* 正中那一小条：打中算完美 */
+  .fp-perfect {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: rgba(255, 246, 200, 0.85);
+  }
+
+  /* 来回扫的指针 */
+  .fp-marker {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 4px;
+    margin-left: -2px;
+    background: #e05c4a;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1.5px rgba(255, 252, 240, 0.9), 0 0 6px rgba(224, 92, 74, 0.6);
+  }
+
+  .fp-hint {
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #a09280;
+    text-align: center;
+  }
+
+  /* 成功 / 失败时整块闪一下 */
+  #fishPanel.hit { border-color: #4a7d3c; box-shadow: 0 3px 0 rgba(74, 125, 60, 0.4); }
+  #fishPanel.hit .fp-label { color: #4a7d3c; }
+  #fishPanel.miss { border-color: #b8672a; box-shadow: 0 3px 0 rgba(184, 103, 42, 0.35); }
+  #fishPanel.miss .fp-label { color: #b8672a; }
 
   /* ---------- 制作菜单 ---------- */
   #craftMenu {
@@ -542,6 +877,68 @@
     background: #fdeee8;
   }
 
+  /* ---------- 开发者测试面板 ---------- */
+  #devBtn {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px dashed #8a7860;
+    background: rgba(255, 252, 240, 0.7);
+    color: #8a7860;
+    pointer-events: auto;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  #devBtn:active { transform: translateY(2px); }
+  #devBtn svg { width: 18px; height: 18px; display: block; }
+
+  #devMenu {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(20, 40, 48, 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 15;
+  }
+  #devMenu.show { opacity: 1; pointer-events: auto; }
+
+  .dev-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .dev-btn {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: #4a3a2a;
+    padding: 10px 8px;
+    border: 2px solid #d8cbb2;
+    border-radius: 10px;
+    background: #f7f0de;
+  }
+  .dev-btn:active { transform: translateY(2px); background: #efe6d0; }
+  .dev-btn.on { background: #dcecc8; border-color: #8fbc6a; color: #3f6b34; }
+  .dev-note {
+    margin: 0 0 10px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #a09280;
+  }
+
   /* ---------- 游戏结束遮罩 ---------- */
   #overlay {
     position: absolute;
@@ -627,54 +1024,98 @@
     <span class="d-phase" id="dayPhaseLabel">清晨</span>
   </div>
 
-  <!-- 左上角：资源数值 + 采集提示 -->
+  <!-- 顶部中间下面一行：当前场景名 -->
+  <div id="sceneChip"><span id="sceneName">海滩</span></div>
+
+  <!-- 软引导：一次只给一个目标，做完就消失 -->
+  <div id="goalChip"><span id="goalText"></span></div>
+
+  <!-- 左上角：只留一个背包按钮 + 采集提示 -->
   <div class="hud-left">
-    <div class="chip">
-      <span class="dot wood"></span>
-      <span>木材</span>
-      <span class="num" id="woodNum">0</span>
-    </div>
-    <div class="chip">
-      <span class="dot stone"></span>
-      <span>石头</span>
-      <span class="num" id="stoneNum">0</span>
-    </div>
-    <div class="chip">
-      <span class="dot flint"></span>
-      <span>燧石</span>
-      <span class="num" id="flintNum">0</span>
-    </div>
-    <div class="chip eat" id="berryChip">
-      <span class="dot berry"></span>
-      <span>浆果</span>
-      <span class="num" id="berryNum">0</span>
-      <span class="tag">吃</span>
-    </div>
-    <div class="chip eat" id="shellChip">
-      <span class="dot shell"></span>
-      <span>贝壳</span>
-      <span class="num" id="shellNum">0</span>
-      <span class="tag">吃</span>
-    </div>
-    <div class="chip eat" id="fishChip">
-      <span class="dot fish"></span>
-      <span>鱼</span>
-      <span class="num" id="fishNum">0</span>
-      <span class="tag">吃</span>
-    </div>
-    <div class="chip eat" id="foodChip">
-      <span class="dot food"></span>
-      <span>食物</span>
-      <span class="num" id="foodNum">0</span>
-      <span class="tag">吃</span>
-    </div>
-    <div class="chip eat" id="cookedChip">
-      <span class="dot cooked"></span>
-      <span>熟鱼</span>
-      <span class="num" id="cookedNum">0</span>
-      <span class="tag">吃</span>
-    </div>
+    <button id="bagBtn" aria-label="打开背包">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9.5 h16 l-1.4 10.5 h-13.2 z" fill="#f3e6c4"/>
+        <path d="M8.6 9.5 v-2 a3.4 3.4 0 0 1 6.8 0 v2"/>
+        <path d="M4.6 13.6 h14.8"/>
+      </svg>
+      <span>背包</span>
+      <span id="bagDot"></span>
+    </button>
     <div id="toast"></div>
+  </div>
+
+  <!-- 背包面板：所有资源都在这里，食物点一下就能吃 -->
+  <div id="bagPanel">
+    <div class="bag-sheet">
+      <div class="bag-head">
+        <span class="bag-title">背包</span>
+        <button class="sheet-close" id="bagCloseBtn">关闭</button>
+      </div>
+
+      <p class="bag-group">材料</p>
+      <div class="bag-grid">
+        <div class="chip">
+          <span class="dot wood"></span>
+          <span>木材</span>
+          <span class="num" id="woodNum">0</span>
+        </div>
+        <div class="chip">
+          <span class="dot stone"></span>
+          <span>石头</span>
+          <span class="num" id="stoneNum">0</span>
+        </div>
+        <div class="chip">
+          <span class="dot flint"></span>
+          <span>燧石</span>
+          <span class="num" id="flintNum">0</span>
+        </div>
+        <div class="chip">
+          <span class="dot vine"></span>
+          <span>藤蔓</span>
+          <span class="num" id="vineNum">0</span>
+        </div>
+        <div class="chip">
+          <span class="dot iron"></span>
+          <span>铁矿</span>
+          <span class="num" id="ironNum">0</span>
+        </div>
+      </div>
+
+      <p class="bag-group">食物<span class="bag-tip">点一下就能吃</span></p>
+      <div class="bag-grid">
+        <div class="chip eat" id="berryChip">
+          <span class="dot berry"></span>
+          <span>浆果</span>
+          <span class="num" id="berryNum">0</span>
+          <span class="tag">吃</span>
+        </div>
+        <div class="chip eat" id="shellChip">
+          <span class="dot shell"></span>
+          <span>贝壳</span>
+          <span class="num" id="shellNum">0</span>
+          <span class="tag">吃</span>
+        </div>
+        <div class="chip eat" id="fishChip">
+          <span class="dot fish"></span>
+          <span>鱼</span>
+          <span class="num" id="fishNum">0</span>
+          <span class="tag">吃</span>
+        </div>
+        <div class="chip eat" id="foodChip">
+          <span class="dot food"></span>
+          <span>食物</span>
+          <span class="num" id="foodNum">0</span>
+          <span class="tag">吃</span>
+        </div>
+        <div class="chip eat" id="cookedChip">
+          <span class="dot cooked"></span>
+          <span>熟鱼</span>
+          <span class="num" id="cookedNum">0</span>
+          <span class="tag">吃</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 右上角：饥饿条 -->
@@ -698,12 +1139,28 @@
         <path d="M21 9.5 L16 14.5"/>
       </svg>
     </button>
+    <!-- 开发者测试入口 -->
+    <button id="devBtn" aria-label="开发者测试">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#8a7860" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 15.2 a3.2 3.2 0 1 0 0 -6.4 a3.2 3.2 0 0 0 0 6.4 z"/>
+        <path d="M12 2.8 v2.4"/><path d="M12 18.8 v2.4"/>
+        <path d="M2.8 12 h2.4"/><path d="M18.8 12 h2.4"/>
+        <path d="M5.5 5.5 l1.7 1.7"/><path d="M16.8 16.8 l1.7 1.7"/>
+        <path d="M18.5 5.5 l-1.7 1.7"/><path d="M7.2 16.8 l-1.7 1.7"/>
+      </svg>
+    </button>
   </div>
 
-  <!-- 钓鱼状态条：等待时显示"等鱼咬钩"，咬钩后变成倒数的收杆窗口 -->
+  <!-- 钓鱼 QTE：指针来回扫，在中间绿区里点一下收杆 -->
   <div id="fishPanel">
-    <div class="fp-label" id="fishLabel">等鱼咬钩…</div>
-    <div class="fp-bar"><div id="fishFill"></div></div>
+    <div class="fp-label" id="fishLabel">等鱼上钩…</div>
+    <div class="fp-track">
+      <div class="fp-zone" id="fishZone"></div>
+      <div class="fp-perfect" id="fishPerfect"></div>
+      <div class="fp-marker" id="fishMarker"></div>
+    </div>
+    <div class="fp-hint" id="fishHint">指针到中间绿区时点一下</div>
   </div>
 
   <!-- 左下角：虚拟摇杆 -->
@@ -730,8 +1187,59 @@
 
       <div id="recipeList"></div>
 
-      <p class="sheet-tip">先造工作台，其它配方才会解锁。工具用几次就会坏，坏了要重做。燧石只在偶尔冒出来的燧石堆里有。</p>
+      <p class="sheet-tip">解锁是一条链：先搭工作台，再靠工具做更高级的东西。石镐要先用石斧、火把要先有篝火、登山镐要先有石镐。工具用几次就会坏。</p>
       <button class="sheet-reset" id="sheetResetBtn">重新开始</button>
+    </div>
+  </div>
+
+  <!-- 开发者测试面板：方便快速试玩法，不影响正常游玩 -->
+  <div id="devMenu">
+    <div class="sheet">
+      <div class="sheet-head">
+        <span class="sheet-title">开发者测试</span>
+        <button class="sheet-close" id="devCloseBtn">关闭</button>
+      </div>
+      <p class="dev-note">这些按钮只用于测试，正常玩不需要用。</p>
+      <div class="dev-grid">
+        <button class="dev-btn" data-dev="wood">木材 +10</button>
+        <button class="dev-btn" data-dev="stone">石头 +10</button>
+        <button class="dev-btn" data-dev="flint">燧石 +3</button>
+        <button class="dev-btn" data-dev="vine">藤蔓 +5</button>
+        <button class="dev-btn" data-dev="iron">铁矿 +3</button>
+        <button class="dev-btn" data-dev="food">浆果/贝壳 +5</button>
+        <button class="dev-btn" data-dev="fill">补满饥饿</button>
+        <button class="dev-btn" data-dev="unhungry">不会饿：关</button>
+        <button class="dev-btn" data-dev="bench">直接建好工作台</button>
+        <button class="dev-btn" data-dev="tools">直接给齐工具</button>
+        <button class="dev-btn" data-dev="kit">给齐通关道具</button>
+        <button class="dev-btn" data-dev="battery">直接给电池</button>
+        <button class="dev-btn" data-dev="night">跳到夜晚</button>
+        <button class="dev-btn" data-dev="day">跳到白天</button>
+      </div>
+      <p class="dev-note">传送：直接跳到某个场景</p>
+      <div class="dev-grid">
+        <button class="dev-btn" data-dev="go-beach">去海滩</button>
+        <button class="dev-btn" data-dev="go-forest">去密林</button>
+        <button class="dev-btn" data-dev="go-cave">去山洞</button>
+        <button class="dev-btn" data-dev="go-summit">去山顶</button>
+      </div>
+      <button class="sheet-reset" id="devResetBtn">清档重开</button>
+    </div>
+  </div>
+
+  <!-- 日记本：能一页一页翻的小面板 -->
+  <div id="diary">
+    <div class="diary-sheet">
+      <div class="diary-head">
+        <span class="diary-title">一本日记</span>
+        <button class="sheet-close" id="diaryCloseBtn">合上</button>
+      </div>
+      <p class="diary-page" id="diaryPageText"></p>
+      <div class="diary-foot">
+        <button class="diary-btn" id="diaryPrevBtn">上一页</button>
+        <span class="diary-num" id="diaryNum">1 / 4</span>
+        <button class="diary-btn" id="diaryNextBtn">下一页</button>
+      </div>
     </div>
   </div>
 
@@ -744,7 +1252,19 @@
     </div>
   </div>
 
-  <div id="hint">拖动摇杆移动 · 碰到东西自动采集 · 南边沙滩捡贝壳 · 草地摘浆果</div>
+  <!-- 通关画面 -->
+  <div id="ending">
+    <h1 class="e-title">你获救了</h1>
+    <p class="e-text" id="endingText">
+      信号塔的灯亮了。三个小时后，一艘救援船顺着那点光找了过来。
+      你带走了那本日记、那块旧电池，还有一身被海风吹硬的皮肤。
+      上船前你回头看了一眼，心里想的是：这些日子总算有了个交代。
+    </p>
+    <p class="e-sub">— 荒岛生存法则 · 完 —</p>
+    <button id="endingRestartBtn" class="restart-btn">再玩一次</button>
+  </div>
+
+  <div id="hint">拖动摇杆移动 · 碰到东西自动采集 · 走到河边架桥进密林</div>
 </div>
 <script type="module">
   // 触感反馈：这个文件由 App 生成，只有在 App 里才有 Taptic 引擎
@@ -768,6 +1288,8 @@
   const woodNumEl    = document.getElementById('woodNum');
   const stoneNumEl   = document.getElementById('stoneNum');
   const flintNumEl   = document.getElementById('flintNum');
+  const vineNumEl    = document.getElementById('vineNum');
+  const ironNumEl    = document.getElementById('ironNum');
   const berryNumEl   = document.getElementById('berryNum');
   const shellNumEl   = document.getElementById('shellNum');
   const berryChipEl  = document.getElementById('berryChip');
@@ -782,6 +1304,11 @@
   const toastEl      = document.getElementById('toast');
   const hintEl       = document.getElementById('hint');
 
+  const bagBtn     = document.getElementById('bagBtn');
+  const bagPanelEl = document.getElementById('bagPanel');
+  const bagCloseEl = document.getElementById('bagCloseBtn');
+  const bagDotEl   = document.getElementById('bagDot');
+
   const joystickEl = document.getElementById('joystick');
   const knobEl     = document.getElementById('joyKnob');
 
@@ -789,9 +1316,17 @@
   const actionIcon  = document.getElementById('actionIcon');
   const actionLabel = document.getElementById('actionLabel');
 
-  const fishPanelEl = document.getElementById('fishPanel');
-  const fishFillEl  = document.getElementById('fishFill');
-  const fishLabelEl = document.getElementById('fishLabel');
+  const fishPanelEl   = document.getElementById('fishPanel');
+  const fishLabelEl   = document.getElementById('fishLabel');
+  const fishZoneEl    = document.getElementById('fishZone');
+  const fishPerfectEl = document.getElementById('fishPerfect');
+  const fishMarkerEl  = document.getElementById('fishMarker');
+  const fishHintEl    = document.getElementById('fishHint');
+
+  const devBtn      = document.getElementById('devBtn');
+  const devMenuEl   = document.getElementById('devMenu');
+  const devCloseEl  = document.getElementById('devCloseBtn');
+  const devResetBtn = document.getElementById('devResetBtn');
 
   const craftOpenBtn  = document.getElementById('craftOpenBtn');
   const craftMenuEl   = document.getElementById('craftMenu');
@@ -800,6 +1335,18 @@
 
   const overlayEl  = document.getElementById('overlay');
   const restartBtn = document.getElementById('restartBtn');
+  const endingEl   = document.getElementById('ending');
+  const endingRestartBtn = document.getElementById('endingRestartBtn');
+  const sceneNameEl = document.getElementById('sceneName');
+  const goalChipEl  = document.getElementById('goalChip');
+  const goalTextEl  = document.getElementById('goalText');
+
+  const diaryEl      = document.getElementById('diary');
+  const diaryPageEl  = document.getElementById('diaryPageText');
+  const diaryNumEl   = document.getElementById('diaryNum');
+  const diaryPrevBtn = document.getElementById('diaryPrevBtn');
+  const diaryNextBtn = document.getElementById('diaryNextBtn');
+  const diaryCloseBtn = document.getElementById('diaryCloseBtn');
   const soundBtn   = document.getElementById('soundBtn');
   const sheetResetBtn = document.getElementById('sheetResetBtn');
 
@@ -828,7 +1375,7 @@
   const PLAYER_R     = 11;    // 角色占地半径（用于判断"贴到"资源）
 
   const HUNGER_MAX   = 100;   // 饥饿度上限
-  const HUNGER_DRAIN = 0.85;  // 饥饿度每秒下降多少（越小越耐饿）
+  const HUNGER_DRAIN = 0.5;   // 饥饿度每秒下降多少（调慢了，不用一直忙着找吃的）
 
   const WOOD_COST_AXE    = 3;  // 石斧：木材 3
   const WOOD_COST_BENCH  = 5;  // 工作台：木材 5
@@ -836,20 +1383,26 @@
   const WOOD_COST_FARM   = 4;  // 农田：木材 4
   const STONE_COST_FARM  = 2;  // 农田：石头 2
 
+  // 通往通关的三样关键东西
+  const WOOD_COST_BRIDGE = 15; // 木桥：木材 15 + 藤蔓 5，架在河上才能进密林
+  const VINE_COST_BRIDGE = 5;
+  const WOOD_COST_CLIMB  = 5;  // 登山镐：木材 5 + 铁矿 3，有了才能上山顶
+  const IRON_COST_CLIMB  = 3;
+  const WOOD_COST_TORCH  = 1;  // 火把：木材 1 + 燧石 1，进山洞必须带
+  const FLINT_COST_TORCH = 1;
+
   // 工具耐久：用几次就坏，逼你不断回去砍树做新的
   const AXE_USES  = 12;   // 一把石斧能砍几棵树
   const PICK_USES = 10;   // 一把石镐能挖几块石头
   const WARN_USES = 3;    // 剩这么多次时提醒一次
 
-  // 钓鱼：不再是"等 3 秒自动上鱼"，而是等鱼咬钩、抓住时机收杆
-  const FISH_WAIT_MIN   = 1.8;  // 没鱼竿：最短等待（秒）
-  const FISH_WAIT_MAX   = 3.6;  // 没鱼竿：最长等待
-  const FISH_WINDOW     = 0.95; // 没鱼竿：咬钩后能收杆的时间窗口
-  const ROD_WAIT_MIN    = 1.1;  // 有鱼竿：咬钩更快
-  const ROD_WAIT_MAX    = 2.3;
-  const ROD_WINDOW      = 1.35; // 有鱼竿：窗口更宽，更不容易失手
+  // 钓鱼 QTE：指针在轨道上来回扫，要在中间的绿区里点一下收杆
+  const FISH_SWEEP_SPEED = 0.72;  // 指针每秒扫过轨道的比例（越大越快）
+  const FISH_ZONE        = 0.13;  // 绿区半宽（0.13 = 中间 26% 都算命中）
+  const FISH_PERFECT     = 0.045; // 正中这一小条算"完美"
+  const FISH_TIME_LIMIT  = 9;     // 多久没钓上来鱼就跑了（秒）
 
-  const FARM_GROW_TIME  = 45;  // 作物长成秒数
+  const FARM_GROW_TIME  = 90;  // 作物长成秒数（慢下来了，种下去要等）
   const EAT_FISH_HUNGER = 12;  // 吃一条生鱼恢复的饥饿
   const EAT_FOOD_HUNGER = 18;  // 吃一份食物恢复的饥饿
   const EAT_COOKED_HUNGER = 30;// 吃一条烤鱼恢复的饥饿（比生鱼划算很多）
@@ -864,49 +1417,103 @@
   const DAY_LENGTH   = 120;   // 一整天的秒数（白天约 45 秒，夜晚约 30 秒）
   const DAY_START    = 0.36;  // 开局时刻：0 = 午夜，0.36 ≈ 早上九点（一开局就是大白天）
   const DUSK_AT      = 0.66;  // 从这一刻开始天暗下来，会提示一次"天要黑了"
-  const NIGHT_HUNGER = 0.28;  // 夜里饥饿额外加快的比例（0.28 = 快 28%）
+  const NIGHT_HUNGER = 0.22;  // 夜里饥饿额外加快的比例（0.22 = 快 22%）
 
   // 资源再生：慢下来了，砍光一片树林要等很久才恢复
   const REGROW_TREE = 150;    // 树桩长回一棵树（秒）
   const REGROW_ROCK = 120;    // 碎石长回一块石头（秒）
-  const REGROW_SHELL = 55;    // 沙滩上重新冲上来一个贝壳（秒）
-  const REGROW_BERRY = 60;    // 浆果丛重新结果（秒）
+  const REGROW_SHELL = 80;    // 沙滩上重新冲上来一个贝壳（秒）
+  const REGROW_BERRY = 110;   // 浆果丛重新结果（秒）
+  const REGROW_VINE  = 100;   // 藤蔓重新长出来（秒）
 
   // 稀有资源：燧石堆。隔一阵子在岛上随机冒出来一处，采完就消失
   const RARE_WAIT_MIN = 28;   // 两处燧石之间至少隔多少秒
   const RARE_WAIT_MAX = 62;   // 最多隔多少秒
   const RARE_LIFE     = 45;   // 冒出来后多久没采就自己沉回沙里
 
-  // 树的位置：用相对屏幕的比例坐标保存，不同尺寸的手机上都能落在岛上
-  // 避开中间的高地和南边的沙滩，不然会被地形挡住够不到
-  const TREE_SPOTS = [
-    [0.27, 0.24], [0.50, 0.17], [0.73, 0.24], [0.16, 0.42], [0.28, 0.40],
-    [0.34, 0.72], [0.56, 0.74], [0.86, 0.30], [0.20, 0.60], [0.90, 0.62],
-    [0.10, 0.52], [0.44, 0.62], [0.22, 0.32], [0.84, 0.74]
-  ];
-  // 石头的位置（同样是比例坐标）
-  const ROCK_SPOTS = [
-    [0.63, 0.36], [0.30, 0.52], [0.88, 0.44], [0.46, 0.72],
-    [0.16, 0.78], [0.78, 0.80], [0.66, 0.18]
-  ];
-  // 浆果丛的位置：草地上，前期能垫肚子
-  const BERRY_SPOTS = [
-    [0.24, 0.48], [0.38, 0.40], [0.32, 0.20], [0.62, 0.42], [0.52, 0.66]
-  ];
-  // 贝壳的位置：全都在南边那片沙滩上
-  const SHELL_SPOTS = [
-    [0.30, 0.86], [0.38, 0.88], [0.46, 0.85],
-    [0.54, 0.87], [0.62, 0.855], [0.68, 0.83]
-  ];
+  // 铁矿：拿着石镐敲石头时，有一定概率多掉一块铁
+  const IRON_CHANCE = 0.38;   // 普通石头掉铁的概率
+  const IRON_CHANCE_ORE = 0.85; // 密林里的矿脉掉铁的概率更高
+
+  // ==================================================================
+  // 场景：4 张地图，各自有各自的地形和资源
+  // 坐标都是相对屏幕的比例，换设备也不会跑位
+  // ==================================================================
+  const SCENE_LIST = ['beach', 'forest', 'cave', 'summit'];
+
+  const SCENE_INFO = {
+    beach:  { name: '海滩',   outer: '#e8d8ac', inner: '#a4c07a' },
+    forest: { name: '密林',   outer: '#5f7d47', inner: '#6f9152' },
+    cave:   { name: '山洞',   outer: '#4a4038', inner: '#565049' },
+    summit: { name: '山顶',   outer: '#b9b19c', inner: '#c9c2ad' }
+  };
+
+  // 每个场景里资源的位置
+  const SCENE_SPOTS = {
+    beach: {
+      // 位置都避开了农田（x 0.56~0.84，y 0.435~0.565），免得挡住它
+      trees: [
+        [0.14, 0.34], [0.28, 0.28], [0.42, 0.26], [0.58, 0.26],
+        [0.74, 0.27], [0.88, 0.34], [0.10, 0.52], [0.22, 0.44],
+        [0.34, 0.40], [0.24, 0.64], [0.50, 0.68], [0.88, 0.66]
+      ],
+      rocks: [
+        [0.36, 0.36], [0.52, 0.34], [0.68, 0.36], [0.16, 0.46], [0.90, 0.46]
+      ],
+      bushes: [[0.20, 0.42], [0.40, 0.54], [0.50, 0.44]],
+      // 海滩上也有几根爬藤（不然造木桥要的藤蔓永远拿不到），密林里更多
+      vines:  [[0.30, 0.60], [0.44, 0.62], [0.72, 0.64], [0.90, 0.58]],
+      shells: [
+        [0.28, 0.74], [0.38, 0.75], [0.48, 0.735],
+        [0.58, 0.745], [0.68, 0.73], [0.78, 0.72]
+      ]
+    },
+    forest: {
+      trees: [
+        [0.26, 0.26], [0.42, 0.20], [0.58, 0.22], [0.74, 0.28],
+        [0.30, 0.42], [0.52, 0.38], [0.70, 0.44], [0.20, 0.58],
+        [0.44, 0.56], [0.62, 0.56], [0.84, 0.54], [0.32, 0.72],
+        [0.56, 0.74], [0.76, 0.70]
+      ],
+      rocks: [
+        [0.46, 0.30], [0.68, 0.36], [0.28, 0.64], [0.60, 0.62], [0.86, 0.42]
+      ],
+      bushes: [[0.34, 0.46], [0.56, 0.44], [0.48, 0.70]],
+      vines:  [
+        [0.38, 0.32], [0.64, 0.34], [0.24, 0.50],
+        [0.50, 0.48], [0.78, 0.62], [0.40, 0.66]
+      ],
+      shells: []
+    },
+    cave: {
+      trees: [],
+      rocks: [[0.30, 0.38], [0.68, 0.40], [0.36, 0.62], [0.64, 0.60]],
+      bushes: [],
+      vines:  [],
+      shells: []
+    },
+    summit: {
+      trees: [],
+      rocks: [[0.32, 0.52], [0.68, 0.54], [0.42, 0.66]],
+      bushes: [],
+      vines:  [],
+      shells: []
+    }
+  };
 
   // ==================================================================
   // 2. 游戏状态
   // 所有会变的数值都集中在这里，方便后续读档 / 存档
   // ==================================================================
   const state = {
+    scene: 'beach',      // 当前在哪个场景：beach / forest / cave / summit
+    sceneStore: {},      // 每个场景里资源的状态，切场景时暂存，回来时还原
+
     wood: 0,             // 木材
     stone: 0,            // 石头
     flint: 0,            // 燧石（稀有，只有偶尔出现的燧石堆才有）
+    vine: 0,             // 藤蔓（密林里采）
+    iron: 0,             // 铁矿（拿石镐敲石头有概率掉）
     berry: 0,            // 浆果（草地上采，前期垫肚子）
     shell: 0,            // 贝壳（南边沙滩上捡，也能吃）
     fish: 0,             // 生鱼（可点击食用）
@@ -915,11 +1522,18 @@
     hunger: HUNGER_MAX,  // 饥饿度，降到 0 游戏结束
     hasAxe: false,       // 石斧：砍树一下就好
     hasPick: false,      // 石镐：挖石头一下就好，而且多得 1 个
-    hasBench: false,     // 工作台（解锁农田）
+    // 营地工作台：每个场景可以各建一个，站在哪个营地就在哪儿制作
+    bench: { beach: false, forest: false, cave: false, summit: false },
     hasCampfire: false,  // 篝火：可以烤鱼，夜里照亮
-    hasTorch: false,     // 火把：夜里的照明范围更大
-    hasRod: false,       // 木鱼竿：鱼咬钩更快、收杆窗口更宽
-    gameOver: false,     // 是否已经结束
+    hasBridge: false,    // 木桥：架在河上才能进密林
+    hasClimb: false,     // 登山镐：有了才能上山顶
+    hasTorch: false,     // 火把：进山洞必须带，否则几乎看不见
+    hasBattery: false,   // 废弃电池：启动信号塔的关键
+    diaryRead: false,    // 日记本是否已经看过
+    rescued: false,      // 是否已经通关（启动过信号塔）
+    ateOnce: false,      // 是否吃过东西（软引导用）
+    devUnhungry: false,  // 开发者选项：打开后饥饿不再下降
+    gameOver: false,     // 是否已经饿死
     time: 0,             // 累计时间（秒），驱动各种小动画
 
     axeUses: 0,          // 石斧还能砍几棵树
@@ -952,12 +1566,13 @@
 
     contact: { target: null, t: 0, beat: 0 }, // 贴着的资源 + 已接触时长 + 已响过的凿击次数
 
-    fishing: {                 // 钓鱼小游戏
+    fishing: {                 // 钓鱼 QTE
       active: false,           // 是否在钓
-      phase: 'idle',           // idle 空闲 / wait 等咬钩 / bite 咬钩了
-      t: 0,                    // 当前阶段已经过去多少秒
-      wait: 0,                 // 这次要等多久才咬钩
-      window: FISH_WINDOW      // 咬钩后能收杆的时间窗口
+      pos: 0.5,                // 指针位置 0..1
+      dir: 1,                  // 指针往哪边走
+      t: 0,                    // 这次钓鱼已经过去多少秒
+      cool: 0,                 // 收杆后的短暂冷却，防止连点
+      inZone: false            // 指针现在是不是在绿区里
     },
 
     farm: {              // 农田
@@ -968,8 +1583,9 @@
     },
 
     trees: [],           // 树：{ kind, fx, fy, x, y, r, alive, canopy }
-    rocks: [],           // 石头：{ kind, fx, fy, x, y, r, alive, pts }
+    rocks: [],           // 石头：{ kind, fx, fy, x, y, r, alive, pts, ore }
     bushes: [],          // 浆果丛：{ kind, fx, fy, x, y, r, ripe, regrow, grow, pts }
+    vines: [],           // 藤蔓：{ kind, fx, fy, x, y, r, ripe, regrow, pts }
     shells: [],          // 贝壳：{ kind, fx, fy, x, y, r, alive, regrow, grow }
     floats: [],          // 采集时飘起来的 "+1" 文字
 
@@ -980,14 +1596,22 @@
     actionKey: ''        // 互动按钮当前状态缓存（避免每帧刷 DOM）
   };
 
-  // 世界布局（小岛、水塘、农田、海浪、草丛的几何数据）
+  // 世界布局（当前场景的地形、资源、可交互点）
   const world = {
     W: 0, H: 0,                 // 画布逻辑尺寸（等于 CSS 像素）
-    island: { cx: 0, cy: 0, rx: 0, ry: 0, blob: [], innerBlob: [] },
+    scene: 'beach',             // 当前场景（和 state.scene 同步，绘制时用）
+    outer: '#e8d8ac',           // 地表外圈颜色（沙滩 / 林间空地 / 岩壁 / 山顶）
+    inner: '#a4c07a',           // 地表内圈颜色（草地 / 密林 / 洞底 / 台地）
+    hasPond: true,              // 这个场景有没有水塘（只有海滩有）
+    walk: [],                   // 当前场景里角色能走的多边形
+    insetCache: {},             // 缩放过的多边形缓存
+
+    island: { cx: 0, cy: 0, blob: [], innerBlob: [] },
     pond:   { x: 0, y: 0, rx: 0, ry: 0, blob: [] },
-    farm:   { x: 0, y: 0, w: 0, h: 0 },   // 农田中心 + 宽高
-    bench:  { x: 0, y: 0 },               // 工作台位置
+    farm:   { x: 0, y: 0, w: 0, h: 0 },   // 农田中心 + 宽高（只有海滩有）
+    bench:  { x: 0, y: 0 },               // 工作台位置（建好前是虚线空地）
     campfire: { x: 0, y: 0 },             // 篝火位置
+
     waves: [],                  // 海面波浪
     tufts: [],                  // 草地上的小草簇
     dryPatches: [],             // 枯黄的干草地
@@ -995,7 +1619,18 @@
     debris: [],                 // 散落的残骸：贝壳、枯枝、碎石
     wreck: { x: 0, y: 0, a: 0 },// 滩上搁浅的破木筏
     beach: { x: 0, y: 0, rx: 0, ry: 0, blob: [] },   // 南边的一片沙滩
-    hill:  { x: 0, y: 0, rx: 0, ry: 0, blob: [], top: [] } // 中间的高地（走不上去）
+
+    // ---- 场景之间的通道 ----
+    river:    { y: 0, h: 0, active: false },  // 海滩深处挡路的河
+    crossing: { x: 0, y: 0 },                 // 架桥 / 过河的位置
+    exit:     { x: 0, y: 0 },                 // 返回上一个场景的出口
+    climb:    { x: 0, y: 0 },                 // 密林里通往山顶的路
+    caveMouth:{ x: 0, y: 0 },                 // 密林里的山洞入口
+
+    // ---- 剧情道具 ----
+    diary:   { x: 0, y: 0, r: 0 },            // 密林里的日记本
+    battery: { x: 0, y: 0, r: 0 },            // 山洞深处的废弃电池
+    tower:   { x: 0, y: 0, r: 0 }             // 山顶的信号塔
   };
 
   // ==================================================================
@@ -1105,13 +1740,169 @@
     return '夜晚';
   }
 
-  /** 判断点是否在小岛（椭圆）内部，k 越小范围越靠里 */
+  // ==================================================================
+  // 地形形状
+  // 这四张图都是同一座大岛上的一小块，所以陆地都是"铺到屏幕外"的区域，
+  // 而不是一座封闭的圆形小岛。下面是每张图的轮廓生成函数。
+  // ==================================================================
+
+  /** 海滩的海岸线：一条横贯屏幕的起伏曲线，线下面就是海 */
+  function shoreY(fx, H) {
+    return H * (0.78 - 0.035 * Math.sin(fx * 2.7) - 0.018 * Math.cos(fx * 5.1 + 1.2));
+  }
+
+  /** 海滩：上方是陆地，靠下一条沙滩带，再往下是海 */
+  function buildBeachLand(W, H, lift) {
+    const up = (lift || 0) * H;
+    const pts = [
+      { x: -0.3 * W, y: -0.3 * H },
+      { x: 1.3 * W, y: -0.3 * H },
+      { x: 1.3 * W, y: shoreY(1.3, H) - up }
+    ];
+    for (let i = 12; i >= 0; i--) {
+      const fx = -0.3 + 1.6 * (i / 12);
+      pts.push({ x: fx * W, y: shoreY(fx, H) - up });
+    }
+    return pts;
+  }
+
+  /** 海滩的沙滩带：草地边缘和海岸线之间那一条 */
+  function buildBeachSand(W, H) {
+    const sand = 0.105;
+    const top = [];
+    const bottom = [];
+    for (let i = 0; i <= 12; i++) {
+      const fx = -0.3 + 1.6 * (i / 12);
+      top.push({ x: fx * W, y: shoreY(fx, H) - sand * H });
+      bottom.push({ x: fx * W, y: shoreY(fx, H) });
+    }
+    return top.concat(bottom.slice().reverse());
+  }
+
+  /** 密林：整屏都是林地，边缘往里收一圈，做出"树线"的暗边 */
+  function buildForestLand(W, H, inset) {
+    const m = (inset || 0) * Math.min(W, H);
+    const rand = makeRandom(4711);
+    const pts = [];
+    const step = Math.max(W, H) / 9;
+
+    // 上边
+    for (let x = -step; x <= W + step; x += step) {
+      pts.push({ x: x, y: -step + (rand() * 2 - 1) * m * 0.5 });
+    }
+    // 右边
+    for (let y = -step; y <= H + step; y += step) {
+      pts.push({ x: W + step - m + (rand() * 2 - 1) * m * 0.5, y: y });
+    }
+    // 下边（从右往左）
+    for (let x = W + step; x >= -step; x -= step) {
+      pts.push({ x: x, y: H + step - m + (rand() * 2 - 1) * m * 0.5 });
+    }
+    // 左边（从下往上）
+    for (let y = H + step; y >= -step; y -= step) {
+      pts.push({ x: -step + m + (rand() * 2 - 1) * m * 0.5, y: y });
+    }
+    return pts;
+  }
+
+  /** 山洞：一块不大的洞室，四周是岩壁，所以范围比别的图小一圈 */
+  function buildCaveChamber(W, H, scale) {
+    const cx = W * 0.5;
+    const cy = H * 0.52;
+    const rx = W * 0.37 * (scale || 1);
+    const ry = H * 0.275 * (scale || 1);
+    const rand = makeRandom(7331);
+    const pts = [];
+    const n = 30;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2;
+      // 洞壁不平整：低频大起伏 + 高频小抖动
+      const k = 1 + Math.sin(ang * 3.1) * 0.10 + (rand() * 2 - 1) * 0.06;
+      pts.push({
+        x: cx + Math.cos(ang) * rx * k,
+        y: cy + Math.sin(ang) * ry * k
+      });
+    }
+    return pts;
+  }
+
+  /** 山顶：左上是台地，右下角是悬崖，悬崖外面是低处的海 */
+  function buildSummitLand(W, H, inset) {
+    const m = (inset || 0) * Math.min(W, H);
+    const rand = makeRandom(9109);
+    const pts = [
+      { x: -0.3 * W, y: -0.3 * H },
+      { x: 1.3 * W, y: -0.3 * H },
+      { x: 1.3 * W, y: 0.30 * H - m }
+    ];
+    // 悬崖边：从右上斜着往左下走，带一点起伏
+    const steps = 12;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = (1.3 - 1.15 * t) * W;
+      const y = (0.30 + 0.68 * t) * H + (rand() * 2 - 1) * m * 0.4 - m * 0.6;
+      pts.push({ x: x, y: y });
+    }
+    pts.push({ x: -0.3 * W, y: 1.05 * H });
+    return pts;
+  }
+
+  /**
+   * 角色脚下算不算"能站的陆地"
+   * 每张图的可走范围不一样：海滩能一直走到水边，山洞只能在洞室里活动
+   */
+  function onLand(x, y) {
+    if (x < 0 || x > world.W || y < 0 || y > world.H) return false;
+    return inPoly(world.walk, x, y);
+  }
+
+  /** 点在多边形内部（射线法），地形都用多边形描述 */
+  function inPoly(pts, x, y) {
+    if (!pts || pts.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i].x;
+      const yi = pts[i].y;
+      const xj = pts[j].x;
+      const yj = pts[j].y;
+      if ((yi > y) !== (yj > y) &&
+          x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  /** 以多边形重心为中心缩放：k 小于 1 是往里收，大于 1 是往外扩 */
+  function scalePoly(pts, k) {
+    if (!pts || pts.length < 3) return [];
+    let cx = 0;
+    let cy = 0;
+    for (const p of pts) { cx += p.x; cy += p.y; }
+    cx /= pts.length;
+    cy /= pts.length;
+    return pts.map(p => ({ x: cx + (p.x - cx) * k, y: cy + (p.y - cy) * k }));
+  }
+
+  /** 带缓存的缩放，避免每帧重复算同一个多边形 */
+  function insetPoly(poly, cacheKey, k) {
+    const cache = world.insetCache;
+    const key = cacheKey + '@' + k.toFixed(3);
+    if (!cache[key]) cache[key] = scalePoly(poly, k);
+    return cache[key];
+  }
+
+  /**
+   * 判断点是否在这块陆地上
+   * 注意：这些场景都只是大岛的一角，不是一整座小岛，
+   * 所以陆地形状是"铺到屏幕外"的多边形，而不是封闭的圆
+   */
   function ptInIsland(x, y, k) {
     k = k || 1;
-    const isl = world.island;
-    const nx = (x - isl.cx) / (isl.rx * k);
-    const ny = (y - isl.cy) / (isl.ry * k);
-    return nx * nx + ny * ny <= 1;
+    const poly = world.island.blob;
+    if (!poly || poly.length < 3) return false;
+    if (k === 1) return inPoly(poly, x, y);
+    return inPoly(insetPoly(poly, 'land', k), x, y);
   }
 
   /** 判断点是否在水塘里，k 越大范围越外扩 */
@@ -1123,34 +1914,24 @@
     return nx * nx + ny * ny <= 1;
   }
 
-  /** 判断点是否在南边那片沙滩上，k 越大范围越外扩 */
+  /** 判断点是否在这片沙滩上，k 越大范围越外扩 */
   function inBeach(x, y, k) {
     k = k || 1;
-    const b = world.beach;
-    if (!b.rx) return false;
-    const nx = (x - b.x) / (b.rx * k);
-    const ny = (y - b.y) / (b.ry * k);
-    return nx * nx + ny * ny <= 1;
+    const poly = world.beach.blob;
+    if (!poly || poly.length < 3) return false;
+    if (k === 1) return inPoly(poly, x, y);
+    return inPoly(insetPoly(poly, 'beach', k), x, y);
   }
 
   /**
-   * 判断点是否在中间那块高地上
-   * 高地是走不上去的岩坡，只能绕着走——这就是地形差带来的走位变化
+   * 角色能不能站在这个点上
+   * 每张地图的"可走范围"不一样：海滩能走到水边，山洞只能在洞里活动
    */
-  function inHill(x, y, k) {
-    k = k || 1;
-    const h = world.hill;
-    if (!h.rx) return false;
-    const nx = (x - h.x) / (h.rx * k);
-    const ny = (y - h.y) / (h.ry * k);
-    return nx * nx + ny * ny <= 1;
-  }
-
-  /** 角色能不能站在这个点上：岛内的陆地，不在水里，也不在陡坡上 */
   function isWalkable(x, y) {
-    if (!ptInIsland(x, y, 0.94)) return false;
-    if (inPond(x, y, 1.12)) return false;   // 水塘不能走进去，只能在岸边钓鱼
-    if (inHill(x, y, 0.96)) return false;   // 高地是陡坡，走不上去
+    if (!onLand(x, y)) return false;
+    if (world.hasPond && inPond(x, y, 1.12)) return false;      // 水塘不能走进去
+    if (world.river.active &&
+        Math.abs(y - world.river.y) < world.river.h * 0.5) return false;   // 河挡路
     return true;
   }
 
@@ -1162,11 +1943,13 @@
 
   /** 角色是否站在水边（可以钓鱼） */
   function isNearPond(x, y) {
+    if (!world.hasPond) return false;
     return pondDistance(x, y) < 1.75;
   }
 
   /** 角色是否站在农田附近（范围收得比较紧，免得站在岛中间就弹出农田按钮） */
   function isNearFarm(x, y) {
+    if (world.scene !== 'beach') return false;
     const f = world.farm;
     return Math.abs(x - f.x) < f.w / 2 + 14 &&
            Math.abs(y - f.y) < f.h / 2 + 14;
@@ -1174,8 +1957,63 @@
 
   /** 角色是否站在篝火旁边（可以烤鱼） */
   function isNearCampfire(x, y) {
+    if (world.scene !== 'beach') return false;
     const c = world.campfire;
     return Math.hypot(x - c.x, y - c.y) < 48;
+  }
+
+  /** 角色是否站在工作台旁边（只有站在旁边才能制作） */
+  function isNearBench(x, y) {
+    const b = world.bench;
+    if (!b.on) return false;
+    return Math.hypot(x - b.x, y - b.y) < 52;
+  }
+
+  /** 当前场景的工作台建好了没有 */
+  function hasBenchHere() {
+    return !!state.bench[state.scene];
+  }
+
+  // ---------- 场景之间的通道、剧情道具的判定 ----------
+
+  /** 离某个点够近就算"到了" */
+  function near(x, y, pt, r) {
+    return Math.hypot(x - pt.x, y - pt.y) < r;
+  }
+
+  /** 站在海滩的河边（可以架桥 / 过河） */
+  function isNearCrossing(x, y) {
+    return world.river.active && near(x, y, world.crossing, 58);
+  }
+
+  /** 站在返回上一场景的出口上 */
+  function isNearExit(x, y) {
+    return near(x, y, world.exit, 46);
+  }
+
+  /** 站在密林通往山顶的山路前 */
+  function isNearClimb(x, y) {
+    return near(x, y, world.climb, 52);
+  }
+
+  /** 站在山洞入口前 */
+  function isNearCaveMouth(x, y) {
+    return near(x, y, world.caveMouth, 46);
+  }
+
+  /** 站在日记本旁边 */
+  function isNearDiary(x, y) {
+    return near(x, y, world.diary, world.diary.r + 26);
+  }
+
+  /** 站在电池旁边 */
+  function isNearBattery(x, y) {
+    return near(x, y, world.battery, world.battery.r + 26);
+  }
+
+  /** 站在信号塔旁边 */
+  function isNearTower(x, y) {
+    return near(x, y, world.tower, world.tower.r + 34);
   }
 
   /**
@@ -1185,7 +2023,7 @@
    */
   function contactNeed(ent) {
     if (!ent) return CONTACT_TIME_BARE;
-    if (ent.kind === 'berry' || ent.kind === 'shell') return 0.45;
+    if (ent.kind === 'berry' || ent.kind === 'shell' || ent.kind === 'vine') return 0.45;
     if (ent.kind === 'tree' && state.hasAxe) return CONTACT_TIME_AXE;
     if (ent.kind === 'rock' && state.hasPick) return CONTACT_TIME_AXE;
     return CONTACT_TIME_BARE;
@@ -1195,41 +2033,58 @@
   // 4. 世界布局（响应屏幕尺寸）
   // ==================================================================
 
-  /** 建出树和石头的数据（重开游戏时会重建，坐标是比例值，尺寸在布局时算） */
+  /** 建出当前场景里的所有资源（第一次进入这个场景时调用） */
   function buildEntities() {
-    state.trees = TREE_SPOTS.map((s, i) => ({
+    const spots = SCENE_SPOTS[state.scene] || SCENE_SPOTS.beach;
+
+    state.trees = spots.trees.map((s, i) => ({
       kind: 'tree', fx: s[0], fy: s[1],
       x: 0, y: 0, r: 0,
       alive: true,      // 是否还立着
       regrow: 0,        // 被砍掉后还剩多少秒长回来
       grow: 1,          // 长回来的弹出动画进度 0..1
-      dead: (i === 3 || i === 9),   // 岛上有两棵枯树，只剩光秃秃的枝干
+      dead: (state.scene === 'beach' && (i === 3 || i === 6)),   // 海滩上两棵枯树
       canopy: null,
       seed: 1103 + i * 37
     }));
-    state.rocks = ROCK_SPOTS.map((s, i) => ({
+
+    // 石头：密林和山洞里的石头是矿脉，敲开更容易出铁
+    const ore = (state.scene === 'forest' || state.scene === 'cave');
+    state.rocks = spots.rocks.map((s, i) => ({
       kind: 'rock', fx: s[0], fy: s[1],
       x: 0, y: 0, r: 0,
       alive: true,
       regrow: 0,
       grow: 1,
+      ore: ore,
       pts: null,
       seed: 2207 + i * 53
     }));
 
     // 浆果丛：丛一直都在，只是结果和不结果的区别
-    state.bushes = BERRY_SPOTS.map((s, i) => ({
+    state.bushes = spots.bushes.map((s, i) => ({
       kind: 'berry', fx: s[0], fy: s[1],
       x: 0, y: 0, r: 0,
-      ripe: true,       // 现在有没有果子
-      regrow: 0,        // 摘掉之后还要多少秒重新结果
+      ripe: true,
+      regrow: 0,
       grow: 1,
       pts: null,
       seed: 3301 + i * 61
     }));
 
-    // 贝壳：散在南边沙滩上，捡走之后潮水会再冲上来
-    state.shells = SHELL_SPOTS.map((s, i) => ({
+    // 藤蔓：密林里的攀爬植物，采下来是造木桥的材料
+    state.vines = spots.vines.map((s, i) => ({
+      kind: 'vine', fx: s[0], fy: s[1],
+      x: 0, y: 0, r: 0,
+      ripe: true,
+      regrow: 0,
+      grow: 1,
+      pts: null,
+      seed: 5501 + i * 47
+    }));
+
+    // 贝壳：散在沙滩上，捡走之后潮水会再冲上来
+    state.shells = spots.shells.map((s, i) => ({
       kind: 'shell', fx: s[0], fy: s[1],
       x: 0, y: 0, r: 0,
       alive: true,
@@ -1239,47 +2094,57 @@
     }));
   }
 
-  /** 根据当前屏幕尺寸，重新算一遍小岛、水塘、农田、树、石头的位置和形状 */
+  /** 根据当前场景和屏幕尺寸，重新算一遍地形、通道和资源的位置 */
   function layoutWorld() {
     const W = world.W;
     const H = world.H;
     const base = Math.min(W, H);   // 用短边做尺寸基准，竖屏横屏都不会太夸张
+    const scene = state.scene;
+    const info = SCENE_INFO[scene] || SCENE_INFO.beach;
 
-    // ---- 小岛：屏幕中央一块椭圆形的陆地 ----
+    world.scene = scene;
+    world.outer = info.outer;
+    world.inner = info.inner;
+    world.hasPond = (scene === 'beach');
+
+    // ---- 陆地的轮廓：每张图都是大岛的一角，形状各不相同 ----
+    world.insetCache = {};     // 缩放过的多边形缓存，换地形时清空
     const isl = world.island;
     isl.cx = W * 0.5;
-    isl.cy = H * 0.52;
-    isl.rx = W * 0.46;
-    isl.ry = H * 0.42;
+    isl.cy = H * 0.5;
 
-    const rand1 = makeRandom(311);
-    isl.blob = [];
-    for (let i = 0; i < 26; i++) {
-      const ang = (i / 26) * Math.PI * 2;
-      const k = 1 + (rand1() * 2 - 1) * 0.035;
-      isl.blob.push({
-        x: isl.cx + Math.cos(ang) * isl.rx * k,
-        y: isl.cy + Math.sin(ang) * isl.ry * k
-      });
+    if (scene === 'beach') {
+      // 海滩：上面是岛的内陆，靠下一条沙滩带，再往下就是海
+      isl.blob = buildBeachLand(W, H, 0);
+      isl.innerBlob = buildBeachLand(W, H, 0.105);
+      world.walk = buildBeachLand(W, H, 0.028);   // 能走到离水线一点点的地方
+    } else if (scene === 'forest') {
+      // 密林：整屏都是林地，边缘收进去一圈当树线
+      isl.blob = buildForestLand(W, H, 0);
+      isl.innerBlob = buildForestLand(W, H, 0.06);
+      world.walk = buildForestLand(W, H, 0.05);
+    } else if (scene === 'cave') {
+      // 山洞：只有中间一块洞室能活动，四周全是岩壁
+      isl.blob = buildCaveChamber(W, H, 1.14);
+      isl.innerBlob = buildCaveChamber(W, H, 1);
+      world.walk = buildCaveChamber(W, H, 0.93);
+    } else {
+      // 山顶：左上是台地，右下角是悬崖，悬崖外面是海
+      isl.blob = buildSummitLand(W, H, 0);
+      isl.innerBlob = buildSummitLand(W, H, 0.035);
+      world.walk = buildSummitLand(W, H, 0.05);
     }
 
-    const rand2 = makeRandom(733);
-    isl.innerBlob = [];
-    for (let i = 0; i < 26; i++) {
-      const ang = (i / 26) * Math.PI * 2;
-      const k = 1 + (rand2() * 2 - 1) * 0.03;
-      isl.innerBlob.push({
-        x: isl.cx + Math.cos(ang) * isl.rx * 0.93 * k,
-        y: isl.cy + Math.sin(ang) * isl.ry * 0.92 * k
-      });
-    }
-
-    // ---- 水塘：岛左下方的一小片水边（钓鱼点）----
+    // ---- 水塘：只有海滩左下方有（钓鱼点）----
     const pond = world.pond;
-    pond.x = W * 0.30;
-    pond.y = H * 0.66;
-    pond.rx = W * 0.16;
-    pond.ry = H * 0.048;
+    if (scene === 'beach') {
+      pond.x = W * 0.28;
+      pond.y = H * 0.50;
+      pond.rx = W * 0.15;
+      pond.ry = H * 0.045;
+    } else {
+      pond.x = 0; pond.y = 0; pond.rx = 0; pond.ry = 0;
+    }
 
     const rand3 = makeRandom(991);
     pond.blob = [];
@@ -1292,84 +2157,113 @@
       });
     }
 
-    // ---- 南边的一片沙滩：捡贝壳的地方，地势比草地低一层 ----
+    // ---- 沙滩带：只有海滩有，捡贝壳的地方 ----
     const beach = world.beach;
-    beach.x = W * 0.46;
-    beach.y = H * 0.845;
-    beach.rx = W * 0.32;
-    beach.ry = H * 0.085;
-
-    const randB = makeRandom(1717);
-    beach.blob = [];
-    for (let i = 0; i < 22; i++) {
-      const ang = (i / 22) * Math.PI * 2;
-      const k = 1 + (randB() * 2 - 1) * 0.06;
-      beach.blob.push({
-        x: beach.x + Math.cos(ang) * beach.rx * k,
-        y: beach.y + Math.sin(ang) * beach.ry * k * (ang > Math.PI ? 1.05 : 0.9)
-      });
+    if (scene === 'beach') {
+      beach.blob = buildBeachSand(W, H);
+      beach.x = W * 0.5;
+      beach.y = shoreY(0.5, H) - 0.05 * H;
+    } else {
+      beach.blob = [];
+      beach.x = 0; beach.y = 0;
     }
 
-    // ---- 中间的高地：一块走不上去的岩坡，绕过去得花点时间 ----
-    const hill = world.hill;
-    hill.x = W * 0.50;
-    hill.y = H * 0.30;
-    hill.rx = W * 0.165;
-    hill.ry = H * 0.095;
+    // ---- 海滩深处挡路的河：把岛分成南北两半，过河才能进密林 ----
+    const river = world.river;
+    river.active = (scene === 'beach');
+    river.y = H * 0.215;
+    river.h = H * 0.085;
+    world.crossing.x = W * 0.50;
+    world.crossing.y = river.y;
 
-    const randH = makeRandom(2020);
-    hill.blob = [];
-    for (let i = 0; i < 24; i++) {
-      const ang = (i / 24) * Math.PI * 2;
-      const k = 1 + (randH() * 2 - 1) * 0.05;
-      hill.blob.push({
-        x: hill.x + Math.cos(ang) * hill.rx * k,
-        y: hill.y + Math.sin(ang) * hill.ry * k
-      });
-    }
-    // 高地顶面：比底面小一圈，画出来才有"上面还有一层"的感觉
-    hill.top = hill.blob.map(p => ({
-      x: hill.x + (p.x - hill.x) * 0.82,
-      y: hill.y + (p.y - hill.y) * 0.78 - hill.ry * 0.10
-    }));
-
-    // ---- 农田：岛右侧留出的一块平地 ----
+    // ---- 农田 / 篝火：只有海滩这块营地有 ----
     const farm = world.farm;
-    farm.w = W * 0.30;
-    farm.h = H * 0.15;
-    farm.x = W * 0.70;
-    farm.y = H * 0.56;
-
-    // ---- 工作台：建好后出现在农田下方 ----
-    world.bench.x = W * 0.66;
-    world.bench.y = H * 0.72;
-
-    // ---- 篝火：建好后出现在岛心偏上一点，开局走两步就能用到 ----
-    world.campfire.x = W * 0.50;
-    world.campfire.y = H * 0.43;
-
-    // ---- 海面波浪：只放在小岛外面的海里 ----
-    world.waves = [];
-    const wrand = makeRandom(4242);
-    let guard = 0;
-    while (world.waves.length < 26 && guard++ < 600) {
-      const fx = wrand();
-      const fy = wrand();
-      if (ptInIsland(fx * W, fy * H, 1.12)) continue;  // 落在岛上就丢掉
-      world.waves.push({ fx: fx, fy: fy, w: 14 + wrand() * 24, p: wrand() * Math.PI * 2 });
+    if (scene === 'beach') {
+      farm.w = W * 0.28;
+      farm.h = H * 0.13;
+      farm.x = W * 0.70;
+      farm.y = H * 0.50;
+      world.campfire.x = W * 0.46;
+      world.campfire.y = H * 0.40;
+    } else {
+      farm.w = 0; farm.h = 0; farm.x = 0; farm.y = 0;
+      world.campfire.x = 0; world.campfire.y = 0;
     }
 
-    // ---- 草地上的小草簇 ----
+    // ---- 营地工作台：每个场景都有一块能搭工作台的地方 ----
+    // 这样就不用为了做一件东西特意跑回海滩
+    world.bench.on = true;
+    if (scene === 'beach') {
+      world.bench.x = W * 0.64;
+      world.bench.y = H * 0.62;
+    } else if (scene === 'forest') {
+      world.bench.x = W * 0.26;
+      world.bench.y = H * 0.66;
+    } else if (scene === 'cave') {
+      world.bench.x = W * 0.30;
+      world.bench.y = H * 0.60;
+    } else {
+      world.bench.x = W * 0.70;
+      world.bench.y = H * 0.52;
+    }
+
+    // ---- 各场景的通道和剧情道具 ----
+    world.exit.x = W * 0.50;
+    world.exit.y = H * 0.86;
+
+    if (scene === 'forest') {
+      world.exit.x = W * 0.50;      // 下方出口：回海滩
+      world.exit.y = H * 0.86;
+      world.climb.x = W * 0.50;     // 上方山路：去山顶
+      world.climb.y = H * 0.13;
+      world.caveMouth.x = W * 0.16; // 左边山洞入口
+      world.caveMouth.y = H * 0.44;
+      world.diary.x = W * 0.66;
+      world.diary.y = H * 0.70;
+      world.diary.r = Math.max(9, base * 0.026);
+    } else if (scene === 'cave') {
+      world.exit.x = W * 0.50;      // 洞口：回密林
+      world.exit.y = H * 0.76;
+      world.battery.x = W * 0.50;   // 洞深处的电池
+      world.battery.y = H * 0.30;
+      world.battery.r = Math.max(10, base * 0.028);
+    } else if (scene === 'summit') {
+      world.exit.x = W * 0.42;      // 下山的路：回密林
+      world.exit.y = H * 0.76;
+      world.tower.x = W * 0.46;     // 山顶的信号塔
+      world.tower.y = H * 0.32;
+      world.tower.r = Math.max(16, base * 0.05);
+    } else {
+      // 海滩：河边就是通往密林的地方
+      world.crossing.x = W * 0.50;
+      world.crossing.y = river.y + river.h * 0.5 + 14;
+    }
+
+    // ---- 海面波浪：海滩和山顶四周是海 ----
+    world.waves = [];
+    if (scene === 'beach' || scene === 'summit') {
+      const wrand = makeRandom(4242);
+      let guard = 0;
+      while (world.waves.length < 26 && guard++ < 600) {
+        const fx = wrand();
+        const fy = wrand();
+        if (ptInIsland(fx * W, fy * H, 1.12)) continue;  // 落在岛上就丢掉
+        world.waves.push({ fx: fx, fy: fy, w: 14 + wrand() * 24, p: wrand() * Math.PI * 2 });
+      }
+    }
+
+    // ---- 地上的小草簇 ----
     world.tufts = [];
     const trand = makeRandom(777);
     let tg = 0;
-    while (world.tufts.length < 26 && tg++ < 600) {
+    const tuftCount = (scene === 'beach' || scene === 'forest') ? 26 : 10;
+    while (world.tufts.length < tuftCount && tg++ < 600) {
       const x = (0.1 + trand() * 0.8) * W;
       const y = (0.1 + trand() * 0.8) * H;
       if (!ptInIsland(x, y, 0.86)) continue;
-      if (inPond(x, y, 1.25)) continue;
+      if (world.hasPond && inPond(x, y, 1.25)) continue;
       if (inBeach(x, y, 1.02)) continue;
-      if (inHill(x, y, 1.05)) continue;
+      if (river.active && Math.abs(y - river.y) < river.h) continue;
       if (Math.abs(x - farm.x) < farm.w / 2 && Math.abs(y - farm.y) < farm.h / 2) continue;
       world.tufts.push({ x: x, y: y, s: 0.7 + trand() * 0.6 });
     }
@@ -1382,9 +2276,9 @@
       const x = (0.14 + drand() * 0.72) * W;
       const y = (0.14 + drand() * 0.72) * H;
       if (!ptInIsland(x, y, 0.84)) continue;
-      if (inPond(x, y, 1.3)) continue;
+      if (world.hasPond && inPond(x, y, 1.3)) continue;
       if (inBeach(x, y, 1.05)) continue;
-      if (inHill(x, y, 1.05)) continue;
+      if (river.active && Math.abs(y - river.y) < river.h * 1.2) continue;
       const rx = base * (0.05 + drand() * 0.05);
       const ry = rx * (0.45 + drand() * 0.25);
       const pts = circlePts(rx, 0.22, drand).map(p => ({ x: p.x, y: p.y * (ry / rx) }));
@@ -1399,9 +2293,9 @@
       const x = (0.16 + crand() * 0.68) * W;
       const y = (0.16 + crand() * 0.68) * H;
       if (!ptInIsland(x, y, 0.82)) continue;
-      if (inPond(x, y, 1.3)) continue;
+      if (world.hasPond && inPond(x, y, 1.3)) continue;
       if (inBeach(x, y, 1.05)) continue;
-      if (inHill(x, y, 1.08)) continue;
+      if (river.active && Math.abs(y - river.y) < river.h * 1.2) continue;
       const segs = [];
       let px = x;
       let py = y;
@@ -1417,7 +2311,7 @@
       world.cracks.push({ x: x, y: y, segs: segs });
     }
 
-    // ---- 荒芜感：沙滩和草地上的残骸（贝壳、枯枝、碎石、白骨） ----
+    // ---- 荒芜感：散落的残骸（贝壳、枯枝、碎石、白骨） ----
     world.debris = [];
     const erand = makeRandom(8080);
     let eg = 0;
@@ -1425,8 +2319,8 @@
       const x = (0.06 + erand() * 0.88) * W;
       const y = (0.08 + erand() * 0.84) * H;
       if (!ptInIsland(x, y, 0.97)) continue;
-      if (inPond(x, y, 1.2)) continue;
-      if (inHill(x, y, 1.06)) continue;
+      if (world.hasPond && inPond(x, y, 1.2)) continue;
+      if (river.active && Math.abs(y - river.y) < river.h * 1.2) continue;
       const kindRoll = erand();
       const kind = kindRoll < 0.34 ? 'twig'
                  : kindRoll < 0.62 ? 'shell'
@@ -1440,12 +2334,20 @@
       });
     }
 
-    // ---- 荒芜感：搁浅在沙滩上的破木筏 ----
-    world.wreck.x = W * 0.23;
-    world.wreck.y = H * 0.82;
+    // ---- 搁浅的破木筏：只有海滩有，斜插在沙地上 ----
+    world.wreck.x = W * 0.22;
+    world.wreck.y = shoreY(0.22, H) - 0.035 * H;
     world.wreck.a = -0.42;
 
-    // ---- 树：位置 + 半径 + 手绘树冠 ----
+    layoutEntities();
+  }
+
+  /** 把当前场景的资源摆到屏幕上（切场景、转屏都会重新算） */
+  function layoutEntities() {
+    const W = world.W;
+    const H = world.H;
+    const base = Math.min(W, H);
+
     state.trees.forEach(t => {
       t.x = t.fx * W;
       t.y = t.fy * H;
@@ -1463,30 +2365,35 @@
       }));
     });
 
-    // ---- 石头 ----
+    // 石头做得小一点，别挡住农田和路
     state.rocks.forEach(rk => {
       rk.x = rk.fx * W;
       rk.y = rk.fy * H;
-      rk.r = Math.max(11, base * 0.040);
+      rk.r = Math.max(7, base * 0.024);
       rk.pts = circlePts(rk.r, 0.2, makeRandom(rk.seed));
     });
 
-    // ---- 浆果丛 ----
+    // 浆果丛也收小
     state.bushes.forEach(b => {
       b.x = b.fx * W;
       b.y = b.fy * H;
-      b.r = Math.max(13, base * 0.045);
+      b.r = Math.max(8, base * 0.026);
       b.pts = circlePts(b.r, 0.16, makeRandom(b.seed));
     });
 
-    // ---- 贝壳 ----
+    state.vines.forEach(v => {
+      v.x = v.fx * W;
+      v.y = v.fy * H;
+      v.r = Math.max(8, base * 0.026);
+      v.pts = circlePts(v.r, 0.18, makeRandom(v.seed));
+    });
+
     state.shells.forEach(s => {
       s.x = s.fx * W;
       s.y = s.fy * H;
       s.r = Math.max(7, base * 0.020);
     });
 
-    // ---- 燧石堆的大小 ----
     state.rare.r = Math.max(12, base * 0.044);
   }
 
@@ -1542,34 +2449,99 @@
     });
   }
 
-  /** 小岛：沙滩 + 草地 + 干草斑块 + 裂缝 + 残骸，整体要有点荒废的味道 */
+  /** 当前场景的地面：外圈 + 内圈 + 装饰，颜色由场景决定 */
   function drawIsland() {
     const isl = world.island;
 
-    ctx.fillStyle = SAND;
+    // 外圈（沙滩 / 林地边缘 / 岩壁 / 山顶碎石）
+    ctx.fillStyle = world.outer;
     smoothPath(isl.blob);
     ctx.fill();
-    ctx.strokeStyle = SAND_EDGE;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
 
-    ctx.fillStyle = GRASS;
+    // 外圈的边：只在"看得见边缘"的地方描线（海滩是海岸线，山洞是岩壁）
+    if (world.scene === 'beach') {
+      ctx.strokeStyle = SAND_EDGE;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    } else if (world.scene === 'cave') {
+      ctx.strokeStyle = 'rgba(20,18,16,0.8)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    // 内圈（草地 / 密林 / 洞底 / 台地）
+    ctx.fillStyle = world.inner;
     smoothPath(isl.innerBlob);
     ctx.fill();
-    ctx.strokeStyle = GRASS_EDGE;
-    ctx.lineWidth = 2;
-    ctx.stroke();
 
-    // 南边的沙滩（画在草地上，边缘只到草地为止，不会漏进海里）
-    drawBeach();
+    // 密林：内圈外面再压一圈深色，看起来像树冠遮出来的暗边
+    if (world.scene === 'forest') {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(24,42,20,0.55)';
+      ctx.lineWidth = 26;
+      smoothPath(isl.innerBlob);
+      ctx.stroke();
+      ctx.restore();
+    }
 
-    // 中间的高地
-    drawHill();
+    // 海滩才有的沙滩带
+    if (world.scene === 'beach') drawBeach();
 
-    // 枯黄的干草斑块：让草地看起来一块一块地干掉了
+    // 山洞：洞底再暗一点，靠边缘更黑，再加一圈犬牙一样的岩齿
+    if (world.scene === 'cave') {
+      const g = ctx.createRadialGradient(
+        isl.cx, isl.cy, Math.min(world.W, world.H) * 0.05,
+        isl.cx, isl.cy, Math.min(world.W, world.H) * 0.42
+      );
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, 'rgba(0,0,0,0.55)');
+      ctx.save();
+      smoothPath(isl.innerBlob);
+      ctx.clip();
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, world.W, world.H);
+      ctx.restore();
+
+      // 岩齿：沿洞壁往里伸的几块尖石，让洞看起来不像一块空地
+      ctx.save();
+      ctx.fillStyle = 'rgba(58,52,46,0.9)';
+      ctx.strokeStyle = 'rgba(28,24,20,0.8)';
+      ctx.lineWidth = 1.4;
+      const wall = isl.innerBlob;
+      for (let i = 0; i < wall.length; i += 3) {
+        const p = wall[i];
+        const dx = isl.cx - p.x;
+        const dy = isl.cy - p.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        const w = 9 + (i % 7);
+        const hh = 20 + (i % 5) * 5;
+        ctx.beginPath();
+        ctx.moveTo(p.x - uy * w, p.y + ux * w);
+        ctx.lineTo(p.x + ux * hh, p.y + uy * hh);
+        ctx.lineTo(p.x + uy * w, p.y - ux * w);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // 山顶：悬崖边压一道暗影，显得台地比海高
+    if (world.scene === 'summit') {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(52,48,40,0.45)';
+      ctx.lineWidth = 10;
+      smoothPath(isl.blob);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 枯黄的干草斑块：让地面看起来一块一块地干掉了
     for (const dp of world.dryPatches) {
       ctx.save();
-      ctx.globalAlpha = 0.55;
+      ctx.globalAlpha = world.scene === 'beach' ? 0.55 : 0.32;
       ctx.fillStyle = DRY_GRASS;
       smoothPath(dp.pts, dp.x, dp.y);
       ctx.fill();
@@ -1577,7 +2549,7 @@
     }
 
     // 草丛点缀：几笔简单的 "v" 形小线
-    ctx.strokeStyle = GRASS_EDGE;
+    ctx.strokeStyle = world.scene === 'beach' ? GRASS_EDGE : 'rgba(58,84,44,0.55)';
     ctx.lineWidth = 2;
     for (const tf of world.tufts) {
       const s = 4 * tf.s;
@@ -1604,127 +2576,677 @@
     // 散落的残骸
     for (const d of world.debris) drawDebris(d);
 
-    // 搁浅的破木筏
-    drawWreck();
+    // 搁浅的破木筏（只有海滩有）
+    if (world.scene === 'beach') {
+      drawWreck();
+      drawCampProps();
+    }
+
+    // 挡路的河 + 桥
+    if (world.river.active) drawRiver();
+
+    // 各场景的通道和剧情道具
+    if (world.scene === 'beach') {
+      drawPortal(world.crossing.x, world.crossing.y, '密林');
+    } else if (world.scene === 'forest') {
+      drawCaveMouth();
+      drawClimbPath();
+      drawPortal(world.exit.x, world.exit.y, '海滩');
+      drawDiary();
+    } else if (world.scene === 'cave') {
+      drawCaveMarks();
+      drawPortal(world.exit.x, world.exit.y, '密林');
+      drawBattery();
+    } else if (world.scene === 'summit') {
+      drawPortal(world.exit.x, world.exit.y, '密林');
+      drawTower();
+    }
   }
 
   /**
-   * 南边的沙滩：比草地低一层
-   * 靠草地的一侧画一道暗边（土坎的投影），靠海的一侧画一条浅水线，
-   * 这样一眼就能看出这块地是"下去一层"的
+   * 挡路的河：横贯海滩上半部分的一条水带
+   * 有木桥之后，桥中间会出现一块可以走的木板
+   */
+  function drawRiver() {
+    const W = world.W;
+    const H = world.H;
+    const y = world.river.y;
+    const h = world.river.h;
+    const t = state.time;
+
+    ctx.save();
+
+    // 只在陆地范围内画河
+    smoothPath(world.island.blob);
+    ctx.clip();
+
+    // 河面
+    ctx.fillStyle = '#5fa9bd';
+    ctx.beginPath();
+    ctx.moveTo(-10, y - h * 0.5);
+    ctx.quadraticCurveTo(W * 0.5, y - h * 0.62, W + 10, y - h * 0.5);
+    ctx.lineTo(W + 10, y + h * 0.5);
+    ctx.quadraticCurveTo(W * 0.5, y + h * 0.62, -10, y + h * 0.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // 两岸的暗边
+    ctx.strokeStyle = 'rgba(60,110,120,0.55)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // 水面上的浅色波纹
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 5; i++) {
+      const fx = 0.12 + i * 0.19;
+      const x = W * fx + Math.sin(t * 0.9 + i) * 6;
+      const yy = y + Math.sin(t * 1.4 + i * 2) * h * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(x - 16, yy);
+      ctx.quadraticCurveTo(x, yy - 4, x + 16, yy);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+
+    // 木桥：造好之后架在河上
+    if (state.hasBridge) {
+      const cx = world.crossing.x;
+      const bw = 54;
+      const bh = h * 1.55;
+
+      ctx.fillStyle = '#b08a5e';
+      roundRectPath(cx - bw / 2, y - bh / 2, bw, bh, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#7a5a3a';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+
+      // 木板纹
+      ctx.strokeStyle = 'rgba(122,90,58,0.7)';
+      ctx.lineWidth = 1.4;
+      for (let i = 1; i < 6; i++) {
+        const yy = y - bh / 2 + (bh / 6) * i;
+        ctx.beginPath();
+        ctx.moveTo(cx - bw / 2 + 3, yy);
+        ctx.lineTo(cx + bw / 2 - 3, yy);
+        ctx.stroke();
+      }
+
+      // 两侧的扶手
+      ctx.strokeStyle = '#8a6a4a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx - bw / 2 + 2, y - bh / 2);
+      ctx.lineTo(cx - bw / 2 + 2, y + bh / 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx + bw / 2 - 2, y - bh / 2);
+      ctx.lineTo(cx + bw / 2 - 2, y + bh / 2);
+      ctx.stroke();
+    }
+  }
+
+  /** 场景通道：地上一圈虚线 + 一个箭头 + 目的地名字 */
+  /**
+   * 靠近才浮出来的地名 / 提示
+   * 远处完全看不见，走近了才慢慢显现——地图上不再写死一堆文字
+   */
+  function drawNearLabel(x, y, text, color, size) {
+    const p = state.player;
+    const d = Math.hypot(p.x - x, p.y - y);
+    const k = Math.max(0, Math.min(1, (150 - d) / 70));   // 80px 内全亮，150px 外全隐
+    if (k <= 0.02) return;
+
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.font = 'bold ' + (size || 11) + 'px ' + FONT;
+    ctx.fillStyle = color || 'rgba(74,58,42,0.85)';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  /** 场景通道：地上一圈虚线 + 一个箭头，名字要走近才看得见 */
+  function drawPortal(x, y, label) {
+    const t = state.time;
+
+    ctx.save();
+    ctx.setLineDash([7, 6]);
+    ctx.lineDashOffset = -t * 10;
+    ctx.strokeStyle = 'rgba(74,58,42,0.45)';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.ellipse(x, y, 26, 12, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // 向上的箭头
+    const bob = Math.sin(t * 3) * 2;
+    ctx.fillStyle = 'rgba(74,58,42,0.55)';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 12 + bob);
+    ctx.lineTo(x - 7, y - 2 + bob);
+    ctx.lineTo(x + 7, y - 2 + bob);
+    ctx.closePath();
+    ctx.fill();
+
+    drawNearLabel(x, y + 24, label);
+  }
+
+  /** 密林里的山洞入口：一块拱形的黑色岩壁 */
+  function drawCaveMouth() {
+    const x = world.caveMouth.x;
+    const y = world.caveMouth.y;
+    const w = 62;
+    const h = 74;
+
+    // 岩壁
+    ctx.fillStyle = '#8d8478';
+    ctx.beginPath();
+    ctx.moveTo(x - w / 2, y + h * 0.42);
+    ctx.quadraticCurveTo(x - w / 2 - 6, y - h * 0.5, x, y - h * 0.62);
+    ctx.quadraticCurveTo(x + w / 2 + 6, y - h * 0.5, x + w / 2, y + h * 0.42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#6a6157';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+
+    // 洞口：越往里越黑
+    const g = ctx.createLinearGradient(x, y - h * 0.45, x, y + h * 0.4);
+    g.addColorStop(0, '#14181c');
+    g.addColorStop(1, '#2b3034');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x - w * 0.28, y + h * 0.38);
+    ctx.quadraticCurveTo(x - w * 0.30, y - h * 0.34, x, y - h * 0.46);
+    ctx.quadraticCurveTo(x + w * 0.30, y - h * 0.34, x + w * 0.28, y + h * 0.38);
+    ctx.closePath();
+    ctx.fill();
+
+    drawNearLabel(x, y + h * 0.60, '山洞');
+  }
+
+  /** 密林里通往山顶的路：一段往上的石阶，有登山镐才走得上去 */
+  function drawClimbPath() {
+    const x = world.climb.x;
+    const y = world.climb.y;
+    const t = state.time;
+
+    // 几级石阶
+    for (let i = 0; i < 4; i++) {
+      const w = 54 - i * 8;
+      const yy = y + 26 - i * 14;
+      ctx.fillStyle = i % 2 === 0 ? '#b9b19c' : '#a9a18c';
+      roundRectPath(x - w / 2, yy, w, 10, 3);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(74,58,42,0.35)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+
+    // 缺口标记：还没做登山镐时，画一道叉
+    if (!state.hasClimb) {
+      ctx.strokeStyle = 'rgba(160,70,50,0.6)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y + 6);
+      ctx.lineTo(x + 9, y + 22);
+      ctx.moveTo(x + 9, y + 6);
+      ctx.lineTo(x - 9, y + 22);
+      ctx.stroke();
+    } else {
+      const bob = Math.sin(t * 3) * 2;
+      ctx.fillStyle = 'rgba(74,58,42,0.55)';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 6 + bob);
+      ctx.lineTo(x - 7, y + 4 + bob);
+      ctx.lineTo(x + 7, y + 4 + bob);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    drawNearLabel(x, y + 44, '山顶');
+  }
+
+  /**
+   * 山洞里的刻痕：前人一天一道，数到两百多
+   * 分排刻在洞壁的岩石上，是这条剧情线里最直接的"有人来过"的证据
+   */
+  function drawCaveMarks() {
+    const W = world.W;
+    const H = world.H;
+    const x0 = W * 0.18;
+    const y0 = H * 0.30;
+    const rows = 3;
+    const perRow = 26;
+    const gapX = Math.max(4, W * 0.0105);
+    const gapY = Math.max(11, H * 0.017);
+
+    // 刻痕底下那块岩面，颜色比洞壁亮一点
+    ctx.save();
+    ctx.fillStyle = 'rgba(96,90,80,0.55)';
+    roundRectPath(x0 - 10, y0 - 16, perRow * gapX + 22, rows * gapY + 16, 5);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(30,26,22,0.6)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // 一道一道的刻痕，每五道一组的中间那道画斜
+    ctx.strokeStyle = 'rgba(226,220,204,0.72)';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+
+    for (let i = 0; i < rows * perRow; i++) {
+      const row = Math.floor(i / perRow);
+      const col = i % perRow;
+      const x = x0 + col * gapX;
+      const y = y0 + row * gapY;
+
+      ctx.beginPath();
+      ctx.moveTo(x, y - 5);
+      ctx.lineTo(x, y + 5);
+      ctx.stroke();
+
+      // 每满五道，补一道斜杠
+      if (col % 5 === 4) {
+        ctx.beginPath();
+        ctx.moveTo(x - gapX * 1.6, y + 4);
+        ctx.lineTo(x + gapX * 0.4, y - 4);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    // 走近了才浮出一句旁白
+    drawNearLabel(x0 + perRow * gapX * 0.5, y0 + rows * gapY + 22,
+                  '有人在这里数过很多天', 'rgba(226,220,204,0.85)');
+  }
+
+  /** 密林里的日记本：一本摊在地上的小册子 */
+  function drawDiary() {
+    const x = world.diary.x;
+    const y = world.diary.y;
+    const r = world.diary.r;
+
+    // 影子
+    ctx.fillStyle = 'rgba(50,70,40,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.5, r * 1.1, r * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 本子
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-0.16);
+    ctx.fillStyle = '#e6dcc0';
+    roundRectPath(-r, -r * 0.7, r * 2, r * 1.4, 2.5);
+    ctx.fill();
+    ctx.strokeStyle = '#8a7450';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // 中缝和几行字
+    ctx.strokeStyle = 'rgba(120,100,70,0.65)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.65);
+    ctx.lineTo(0, r * 0.65);
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      const yy = -r * 0.35 + i * r * 0.32;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.8, yy);
+      ctx.lineTo(-r * 0.18, yy);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(r * 0.18, yy);
+      ctx.lineTo(r * 0.8, yy);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 没读过时冒一点微光，让人注意得到
+    if (!state.diaryRead) {
+      const pulse = 0.5 + Math.sin(state.time * 2.6) * 0.5;
+      ctx.save();
+      ctx.globalAlpha = 0.28 + pulse * 0.3;
+      ctx.strokeStyle = '#f0d98a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(x, y + r * 0.5, r * 1.5, r * 0.6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** 山洞深处的废弃电池：一个躺在地上的旧电瓶，偶尔闪一下 */
+  function drawBattery() {
+    if (state.hasBattery) return;   // 拿走之后就没了
+
+    const x = world.battery.x;
+    const y = world.battery.y;
+    const r = world.battery.r;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.6, r * 1.1, r * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 电瓶本体
+    ctx.fillStyle = '#6d7a6a';
+    roundRectPath(x - r, y - r * 0.7, r * 2, r * 1.4, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#3f4a3e';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 顶上的两个接线柱
+    ctx.fillStyle = '#c9a24a';
+    ctx.beginPath();
+    ctx.arc(x - r * 0.45, y - r * 0.78, r * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#9a3f2f';
+    ctx.beginPath();
+    ctx.arc(x + r * 0.45, y - r * 0.78, r * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 电量标签
+    ctx.fillStyle = '#e8e2d0';
+    roundRectPath(x - r * 0.55, y - r * 0.28, r * 1.1, r * 0.5, 2);
+    ctx.fill();
+
+    // 偶尔闪一下的电火花
+    const pulse = Math.max(0, Math.sin(state.time * 3.4));
+    ctx.save();
+    ctx.globalAlpha = 0.25 + pulse * 0.5;
+    ctx.strokeStyle = '#8fd6e8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.6, r * 1.6, r * 0.6, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** 山顶的信号塔：一座歪歪扭扭的铁架，顶端有个小信号灯 */
+  function drawTower() {
+    const x = world.tower.x;
+    const y = world.tower.y;
+    const r = world.tower.r;
+    const h = r * 3.2;
+    const lit = state.rescued;
+
+    // 影子
+    ctx.fillStyle = 'rgba(60,60,50,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 4, r * 1.5, r * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 塔架：两根斜柱 + 横撑
+    ctx.strokeStyle = '#7c8288';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.9, y);
+    ctx.lineTo(x - r * 0.30, y - h);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + r * 0.9, y);
+    ctx.lineTo(x + r * 0.30, y - h);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#8d9399';
+    ctx.lineWidth = 2.4;
+    for (let i = 1; i <= 3; i++) {
+      const k = i / 4;
+      const yy = y - h * k;
+      const halfW = r * (0.9 - 0.6 * k);
+      ctx.beginPath();
+      ctx.moveTo(x - halfW, yy);
+      ctx.lineTo(x + halfW, yy);
+      ctx.stroke();
+    }
+
+    // 顶端的信号灯
+    ctx.fillStyle = lit ? '#8ef0a8' : '#c25a3f';
+    ctx.beginPath();
+    ctx.arc(x, y - h - 4, r * 0.30, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(40,40,40,0.5)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    // 灯的光晕：通了电就亮起来
+    if (lit) {
+      const pulse = 0.5 + Math.sin(state.time * 3) * 0.5;
+      ctx.save();
+      ctx.globalAlpha = 0.25 + pulse * 0.35;
+      ctx.strokeStyle = '#8ef0a8';
+      ctx.lineWidth = 2;
+      for (let i = 1; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.arc(x, y - h - 4, r * (0.3 + i * 0.45), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    drawNearLabel(x, y + r * 1.1, '信号塔');
+  }
+
+
+  /**
+   * 海滩营地的"成长痕迹"
+   * 你每建一样东西，这片空地就多一样东西：先有棚子，再有箱子，再有晾鱼架。
+   * 目的是让玩家看见"我把这里变成家了"，而不是只看到数字在涨。
+   */
+  function drawCampProps() {
+    const W = world.W;
+    const H = world.H;
+
+    // 1) 搭好工作台之后，营地边上多一个遮风的棚子
+    if (state.bench.beach) {
+      drawShelter(W * 0.82, H * 0.33);
+    }
+
+    // 2) 架好木桥之后，营地堆起木箱（放在工作台旁边，不挡农田）
+    if (state.hasBridge) {
+      drawCrate(W * 0.58, H * 0.665);
+      drawCrate(W * 0.62, H * 0.69, 0.7);
+    }
+
+    // 3) 点起篝火之后，紧挨着篝火立一个晾鱼架
+    if (state.hasCampfire) {
+      const c = world.campfire;
+      drawDryingRack(c.x - W * 0.085, c.y + H * 0.006);
+    }
+  }
+
+  /** 棚子：几根斜插的树枝 + 一片叶子顶 */
+  function drawShelter(x, y) {
+    ctx.fillStyle = 'rgba(50,70,40,0.20)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 4, 30, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 两根斜撑
+    ctx.strokeStyle = '#a9784c';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - 22, y);
+    ctx.lineTo(x - 4, y - 34);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 22, y);
+    ctx.lineTo(x + 4, y - 34);
+    ctx.stroke();
+
+    // 叶子顶：一片斜着的绿色
+    ctx.fillStyle = '#6fae5a';
+    ctx.beginPath();
+    ctx.moveTo(x - 26, y - 22);
+    ctx.lineTo(x + 26, y - 22);
+    ctx.lineTo(x + 20, y - 40);
+    ctx.lineTo(x - 20, y - 40);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#3f6f38';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 顶上的几片叶子
+    ctx.strokeStyle = '#4f8a3d';
+    ctx.lineWidth = 2;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + i * 12, y - 40);
+      ctx.lineTo(x + i * 14, y - 48);
+      ctx.stroke();
+    }
+  }
+
+  /** 木箱：一个方箱 + 一道封条 */
+  function drawCrate(x, y, k) {
+    const s = 11 * (k || 1);
+
+    ctx.fillStyle = 'rgba(50,70,40,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, s * 1.1, s * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#c8a377';
+    roundRectPath(x - s, y - s * 1.6, s * 2, s * 1.6, 2);
+    ctx.fill();
+    ctx.strokeStyle = '#8a6a4a';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(138,106,74,0.8)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(x - s, y - s * 0.8);
+    ctx.lineTo(x + s, y - s * 0.8);
+    ctx.stroke();
+  }
+
+  /** 晾鱼架：两根立柱 + 一根横杆 + 挂着两条鱼 */
+  function drawDryingRack(x, y) {
+    ctx.strokeStyle = '#a9784c';
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y);
+    ctx.lineTo(x - 14, y - 30);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 14, y);
+    ctx.lineTo(x + 14, y - 30);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - 18, y - 30);
+    ctx.lineTo(x + 18, y - 30);
+    ctx.stroke();
+
+    // 两条挂着的鱼
+    for (let i = -1; i <= 1; i += 2) {
+      const fx = x + i * 7;
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(fx, y - 30);
+      ctx.lineTo(fx, y - 22);
+      ctx.stroke();
+
+      ctx.fillStyle = '#8fd6e8';
+      ctx.beginPath();
+      ctx.ellipse(fx, y - 17, 4.5, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#5fa9bd';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * 沙滩带：草地和水之间那一条沙地
+   * 靠草地的一侧压一道土坎的暗影，靠海的一侧画潮水线，
+   * 这样一眼就能看出沙滩是"下去一层"的
    */
   function drawBeach() {
     const b = world.beach;
-    if (!b.rx) return;
-
-    ctx.save();
-    // 只在草地范围内画沙，沙子才不会溢出岛外
-    smoothPath(world.island.innerBlob);
-    ctx.clip();
+    if (!b.blob || b.blob.length < 3) return;
+    const W = world.W;
+    const H = world.H;
 
     // 土坎投在沙上的影子：把沙的形状往上错一点，先画一层暗色
-    ctx.fillStyle = 'rgba(96,92,60,0.20)';
-    smoothPath(b.blob, 0, -5);
+    ctx.save();
+    ctx.fillStyle = 'rgba(96,92,60,0.22)';
+    smoothPath(b.blob, 0, -6);
     ctx.fill();
+    ctx.restore();
 
     // 沙面
     ctx.fillStyle = '#efe2bd';
     smoothPath(b.blob);
     ctx.fill();
-    ctx.strokeStyle = '#d3bd90';
-    ctx.lineWidth = 2;
+
+    // 靠海那半边是湿沙，颜色深一点
+    ctx.save();
+    smoothPath(b.blob);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(200,180,138,0.55)';
+    ctx.fillRect(0, shoreY(0.5, H) - 0.045 * H, W, H);
+    ctx.restore();
+
+    // 海岸线：沙和水之间一道浅浅的湿边
+    ctx.strokeStyle = 'rgba(210,190,150,0.9)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i <= 24; i++) {
+      const fx = -0.3 + 1.6 * (i / 24);
+      const x = fx * W;
+      const y = shoreY(fx, H);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
     ctx.stroke();
 
-    // 靠近海那半边是湿沙，颜色深一点
-    ctx.fillStyle = 'rgba(206,186,142,0.55)';
-    smoothPath(b.blob, 0, b.ry * 0.42);
-    ctx.fill();
-
-    // 潮水线：几条很浅的白弧
+    // 潮水线：沿着海岸线的几条白弧
     ctx.strokeStyle = 'rgba(255,255,255,0.55)';
     ctx.lineWidth = 2;
     for (let i = 0; i < 3; i++) {
-      const y = b.y + b.ry * (0.30 + i * 0.22);
+      const off = 0.012 * H * (i + 1);
       ctx.beginPath();
-      ctx.moveTo(b.x - b.rx * (0.72 - i * 0.16), y);
-      ctx.quadraticCurveTo(b.x, y - 5, b.x + b.rx * (0.72 - i * 0.16), y);
+      for (let j = 0; j <= 24; j++) {
+        const fx = -0.3 + 1.6 * (j / 24);
+        const x = fx * W;
+        const y = shoreY(fx, H) - off;
+        if (j === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
       ctx.stroke();
     }
 
     // 沙里的小碎点，别让沙面太空
     const rand = makeRandom(9001);
+    ctx.save();
+    smoothPath(b.blob);
+    ctx.clip();
     ctx.fillStyle = 'rgba(190,168,124,0.55)';
-    for (let i = 0; i < 40; i++) {
-      const ang = rand() * Math.PI * 2;
-      const rr = Math.sqrt(rand()) * 0.9;
-      const x = b.x + Math.cos(ang) * b.rx * rr;
-      const y = b.y + Math.sin(ang) * b.ry * rr;
+    for (let i = 0; i < 46; i++) {
+      const x = rand() * W;
+      const y = (shoreY(0.5, H) - 0.11 * H) + rand() * (0.12 * H);
       ctx.beginPath();
       ctx.arc(x, y, 1 + rand() * 1.2, 0, Math.PI * 2);
       ctx.fill();
     }
-
     ctx.restore();
   }
 
-  /**
-   * 中间的高地：一块隆起的岩坡
-   * 画法是"投影 + 坡壁 + 亮一点的顶面 + 坡壁上的竖纹"，
-   * 俯视角下这几层叠起来就有了高低差的感觉
-   */
-  function drawHill() {
-    const h = world.hill;
-    if (!h.rx) return;
-
-    // 投在草地上的影子（往右下偏一点）
-    ctx.fillStyle = 'rgba(58,70,44,0.20)';
-    smoothPath(h.blob, h.rx * 0.05, h.ry * 0.22);
-    ctx.fill();
-
-    // 坡壁：整体偏土黄，和草地拉开色差
-    ctx.fillStyle = '#a9a075';
-    smoothPath(h.blob);
-    ctx.fill();
-    ctx.strokeStyle = '#847a52';
-    ctx.lineWidth = 2.4;
-    ctx.stroke();
-
-    // 坡壁上的竖纹，暗示这是一面陡坡
-    ctx.strokeStyle = 'rgba(120,108,70,0.45)';
-    ctx.lineWidth = 1.8;
-    for (let i = 0; i < 9; i++) {
-      const ang = Math.PI * (0.10 + i * 0.10);     // 只画朝下那一半
-      const x1 = h.x + Math.cos(ang) * h.rx * 0.94;
-      const y1 = h.y + Math.sin(ang) * h.ry * 0.94;
-      const x2 = h.x + Math.cos(ang) * h.rx * 0.72;
-      const y2 = h.y + Math.sin(ang) * h.ry * 0.60;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    }
-
-    // 顶面：亮一层，像是被太阳照到的平台
-    ctx.fillStyle = '#c3ce94';
-    smoothPath(h.top);
-    ctx.fill();
-    ctx.strokeStyle = '#96a168';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // 顶面上几块石头和一小片枯草，别让它像一块平板
-    const rand = makeRandom(4545);
-    ctx.fillStyle = 'rgba(150,158,120,0.55)';
-    for (let i = 0; i < 5; i++) {
-      const ang = rand() * Math.PI * 2;
-      const rr = Math.sqrt(rand()) * 0.7;
-      const x = h.x + Math.cos(ang) * h.rx * 0.70 * rr;
-      const y = h.y + Math.sin(ang) * h.ry * 0.66 * rr - h.ry * 0.10;
-      ctx.beginPath();
-      ctx.ellipse(x, y, 4 + rand() * 4, 3 + rand() * 3, rand(), 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
+  // （原来的"中间高地 + 梯子"已经拆掉，改成山顶这个独立场景，见 drawClimbPath / drawTower）
 
   /** 一小块残骸：枯枝 / 贝壳 / 碎石 / 白骨，都是几笔简笔画 */
   function drawDebris(d) {
@@ -1920,9 +3442,8 @@
         ctx.stroke();
       });
 
-      ctx.fillStyle = 'rgba(74,58,42,0.45)';
-      ctx.font = 'bold 13px ' + FONT;
-      ctx.fillText('空地', f.x, f.y);
+      // 名字要走近才浮现，远处看不出这里将来是农田
+      drawNearLabel(f.x, f.y, '可以开垦', 'rgba(74,58,42,0.75)', 12);
       return;
     }
 
@@ -2061,6 +3582,64 @@
     ctx.quadraticCurveTo(x + 5.5, y - 11, x, y - 3);
     ctx.quadraticCurveTo(x - 5.5, y - 11, x, y - 6 - h2);
     ctx.fill();
+  }
+
+  /**
+   * 工作台空地：还没建的时候，地上是一块虚线的方框，写着"工作台"
+   * 走近它按右下角的按钮就能建起来
+   */
+  function drawBenchSpot() {
+    const x = world.bench.x;
+    const y = world.bench.y;
+    const w = 54;
+    const h = 30;
+    const t = state.time;
+    const p = state.player;
+
+    // 平时就是一块普通空地，什么都不画；
+    // 只有走近了，才浮出一圈虚线和一个淡淡的提示，告诉你这里能搭东西
+    const d = Math.hypot(p.x - x, p.y - y);
+    const k = Math.max(0, Math.min(1, (150 - d) / 70));
+    if (k <= 0.02) return;
+
+    ctx.save();
+    ctx.globalAlpha = k;
+
+    ctx.setLineDash([7, 6]);
+    ctx.lineDashOffset = -t * 8;
+    ctx.strokeStyle = 'rgba(74,58,42,0.42)';
+    ctx.lineWidth = 2.4;
+    roundRectPath(x - w / 2, y - h / 2 - 8, w, h, 9);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 四角木桩
+    ctx.fillStyle = '#b98a5a';
+    ctx.strokeStyle = 'rgba(74,58,42,0.5)';
+    ctx.lineWidth = 1.5;
+    [[x - w / 2 + 5, y - h / 2 - 3], [x + w / 2 - 5, y - h / 2 - 3],
+     [x - w / 2 + 5, y + h / 2 - 13], [x + w / 2 - 5, y + h / 2 - 13]].forEach(c => {
+      ctx.beginPath();
+      ctx.arc(c[0], c[1], 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+
+    // 材料不够时也照样提示，只是把数字标红，让人知道还差什么
+    const canWood = state.wood >= WOOD_COST_BENCH;
+    const canStone = state.stone >= STONE_COST_BENCH;
+    ctx.font = 'bold 11px ' + FONT;
+    ctx.textAlign = 'center';
+
+    ctx.fillStyle = 'rgba(74,58,42,0.8)';
+    ctx.fillText('可以搭工作台', x, y - 9);
+
+    ctx.font = 'bold 10px ' + FONT;
+    const cost = '木材 ' + WOOD_COST_BENCH + ' · 石头 ' + STONE_COST_BENCH;
+    ctx.fillStyle = (canWood && canStone) ? 'rgba(74,125,60,0.9)' : 'rgba(178,70,50,0.95)';
+    ctx.fillText(cost, x, y + 24);
+
+    ctx.restore();
   }
 
   /** 工作台：两条腿 + 一块台面 + 台面上的工具 */
@@ -2262,6 +3841,21 @@
     ctx.lineTo(x + r * 0.04, y - r * 1.12);
     ctx.stroke();
 
+    // 矿脉：密林和山洞里的石头带几条暗色的铁纹，提示敲开有铁
+    if (ent.ore) {
+      ctx.strokeStyle = 'rgba(90,86,78,0.85)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.42, y - r * 0.42);
+      ctx.lineTo(x - r * 0.05, y - r * 0.72);
+      ctx.lineTo(x + r * 0.30, y - r * 0.52);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(70,66,58,0.75)';
+      ctx.beginPath();
+      ctx.arc(x + r * 0.16, y - r * 0.34, r * 0.13, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 
@@ -2351,6 +3945,64 @@
         ctx.arc(bx - r * 0.05, by - r * 0.05, r * 0.05, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+  }
+
+  /**
+   * 藤蔓：一根缠在枯枝上的爬藤，垂着几片叶子和一卷卷须
+   * 采完之后藤还挂着，只是没有能用的部分，过一阵子重新长好
+   */
+  function drawVine(ent) {
+    const x = ent.x;
+    const y = ent.y;
+    const r = ent.r;
+    const t = state.time;
+
+    // 影子
+    ctx.fillStyle = 'rgba(40,60,35,0.20)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 1, r * 0.8, r * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 支撑的枯枝
+    ctx.strokeStyle = '#8e7458';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y);
+    ctx.lineTo(x + 1, y - r * 2.0);
+    ctx.stroke();
+
+    // 缠上去的藤：一条来回摆的曲线
+    ctx.strokeStyle = ent.ripe ? '#4f8a3d' : '#6b7a5e';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.5, y);
+    for (let i = 0; i < 4; i++) {
+      const yy = y - r * (0.45 + i * 0.42);
+      const xx = x + Math.sin(i * 1.6 + (ent.ripe ? t * 1.2 : 0)) * r * 0.45;
+      ctx.quadraticCurveTo(x + r * 0.5, yy + r * 0.2, xx, yy);
+    }
+    ctx.stroke();
+
+    // 叶子
+    if (ent.ripe) {
+      ctx.fillStyle = '#6fae5a';
+      const leaves = [
+        [-0.55, -0.55], [0.55, -0.95], [-0.45, -1.35], [0.50, -1.70]
+      ];
+      for (const l of leaves) {
+        ctx.beginPath();
+        ctx.ellipse(x + l[0] * r, y + l[1] * r, r * 0.30, r * 0.17, l[0] * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 顶端一小卷须，暗示这是"能用的藤"
+      ctx.strokeStyle = '#4f8a3d';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(x + r * 0.05, y - r * 2.05, r * 0.16, 0, Math.PI * 1.6);
+      ctx.stroke();
     }
   }
 
@@ -2531,39 +4183,6 @@
     if (state.hasAxe) {
       drawAxe(x + 11 * p.facing, y - 18 + bob, 0.85, p.facing * 0.3, p.facing);
     }
-
-    // 有火把时，天黑了会亮起来
-    if (state.hasTorch && dayPhase(state.clock).dark > 0.25) {
-      drawTorch(x - 11 * p.facing, y - 22 + bob, state.time);
-    }
-  }
-
-  /** 角色手里的火把：一根木柄 + 一点跳动的火苗 */
-  function drawTorch(cx, cy, t) {
-    const flick = Math.sin(t * 11) * 0.18 + Math.sin(t * 19) * 0.08;
-
-    ctx.strokeStyle = '#8a6a4a';
-    ctx.lineWidth = 2.6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy + 9);
-    ctx.lineTo(cx, cy - 5);
-    ctx.stroke();
-
-    const h = 8 * (1 + flick);
-    ctx.fillStyle = 'rgba(240,150,60,0.95)';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - 5 - h);
-    ctx.quadraticCurveTo(cx + 4.5, cy - 7, cx, cy - 3);
-    ctx.quadraticCurveTo(cx - 4.5, cy - 7, cx, cy - 5 - h);
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(255,224,130,0.98)';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - 5 - h * 0.6);
-    ctx.quadraticCurveTo(cx + 2.4, cy - 6.5, cx, cy - 3.5);
-    ctx.quadraticCurveTo(cx - 2.4, cy - 6.5, cx, cy - 5 - h * 0.6);
-    ctx.fill();
   }
 
   /** 小斧头图标（石斧） */
@@ -2626,7 +4245,7 @@
     ctx.restore();
   }
 
-  /** 钓鱼：钓竿 + 鱼线 + 浮漂；鱼咬钩时浮漂沉下去并收紧一圈倒计时环 */
+  /** 钓鱼：钓竿 + 鱼线 + 浮漂；指针进绿区时浮漂会轻轻一沉，提示该收杆了 */
   function drawFishingLine(t) {
     const f = state.fishing;
     if (!f.active) return;
@@ -2637,12 +4256,12 @@
     const dy = p.y - pond.y;
     const len = Math.hypot(dx, dy) || 1;
 
-    const biting = f.phase === 'bite';
+    const hot = f.inZone;
 
-    // 浮漂落在水塘里靠近角色的一侧：等待时轻轻浮动，咬钩时猛地往下沉
+    // 浮漂落在水塘里靠近角色的一侧：平时轻轻浮动，该收杆时往下一沉
     const bx = pond.x + (dx / len) * pond.rx * 0.5;
     let by = pond.y + (dy / len) * pond.ry * 0.5 + Math.sin(t * 3) * 1.5;
-    if (biting) by += 7 + Math.sin(t * 34) * 1.8;
+    if (hot) by += 5 + Math.sin(t * 30) * 1.4;
 
     const rodX = p.x + p.facing * 10;
     const rodY = p.y - 34;
@@ -2656,12 +4275,12 @@
     ctx.lineTo(rodX, rodY);
     ctx.stroke();
 
-    // 鱼线：咬钩时绷紧一点
+    // 鱼线：该收杆时绷紧一点
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.moveTo(rodX, rodY);
-    ctx.quadraticCurveTo((rodX + bx) / 2, rodY - (biting ? 8 : 16), bx, by);
+    ctx.quadraticCurveTo((rodX + bx) / 2, rodY - (hot ? 10 : 16), bx, by);
     ctx.stroke();
 
     // 浮漂
@@ -2679,17 +4298,16 @@
     ctx.arc(bx, by, 4, 0, Math.PI * 2);
     ctx.stroke();
 
-    if (biting) {
-      // 咬钩：一圈从大到小收紧的白环，收完鱼就跑了
-      const k = Math.max(0, 1 - f.t / f.window);
-      const rr = 10 + 30 * k;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + 0.55 * k).toFixed(2) + ')';
+    if (hot) {
+      // 该收杆了：一圈收紧的白环
+      const rr = 9 + (1 - Math.abs(f.pos - 0.5) / FISH_ZONE) * 8;
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
       ctx.lineWidth = 2.6;
       ctx.beginPath();
       ctx.ellipse(bx, by + 1, rr, rr * 0.42, 0, 0, Math.PI * 2);
       ctx.stroke();
     } else {
-      // 等待时：水面慢慢扩散的水纹
+      // 平时：水面慢慢扩散的水纹
       ctx.strokeStyle = 'rgba(255,255,255,0.7)';
       ctx.lineWidth = 1.4;
       const rr = 6 + (t * 12) % 12;
@@ -2716,13 +4334,29 @@
   }
 
   /**
-   * 夜色：白天完全不画；日出日落染一层暖色；入夜后压暗，
-   * 并在角色周围留一圈暖光，免得黑到看不见自己
+   * 夜色 + 山洞的黑暗
+   * 山洞里不看昼夜：没有火把只显示小人周围一圈，有火把就能看清整条通道
    */
   function drawNight() {
     const ph = dayPhase(state.clock);
     const W = world.W;
     const H = world.H;
+    const p = state.player;
+
+    // ---- 山洞：跟时间无关，只看有没有火把 ----
+    if (world.scene === 'cave') {
+      const hasLight = state.hasTorch;
+      const alpha = hasLight ? 0.55 : 0.93;
+      const rad = Math.min(W, H) * (hasLight ? 0.62 : 0.17);
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(4,6,10,' + alpha + ')';
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'lighter';
+      lightAt(p.x, p.y - 8, rad, hasLight ? 0.30 : 0.34);
+      ctx.restore();
+      return;
+    }
 
     // 日出 / 日落的暖色
     if (ph.warm > 0.01) {
@@ -2741,13 +4375,12 @@
 
     ctx.globalCompositeOperation = 'lighter';
 
-    // 角色身边的光：有火把时更亮、范围更大
-    const p = state.player;
-    const rad = Math.min(W, H) * (state.hasTorch ? 0.46 : 0.30);
-    lightAt(p.x, p.y - 8, rad, ph.dark * (state.hasTorch ? 0.40 : 0.30));
+    // 角色身边的光
+    const rad = Math.min(W, H) * 0.30;
+    lightAt(p.x, p.y - 8, rad, ph.dark * 0.32);
 
     // 篝火自己也会照亮一圈，还会跟着火苗轻轻呼吸
-    if (state.hasCampfire) {
+    if (state.hasCampfire && world.scene === 'beach') {
       const c = world.campfire;
       const flick = 0.9 + Math.sin(state.time * 7) * 0.06 + Math.sin(state.time * 13) * 0.04;
       lightAt(c.x, c.y - 6, Math.min(W, H) * 0.34 * flick, ph.dark * 0.34 * flick);
@@ -2770,20 +4403,37 @@
   function render() {
     const t = state.time;
 
-    drawSea(t);
+    // 只有海滩和山顶四周是海，密林和山洞是实心的地面
+    if (world.scene === 'beach' || world.scene === 'summit') drawSea(t);
+    else {
+      ctx.fillStyle = world.scene === 'cave' ? '#0e1114' : '#2f4426';
+      ctx.fillRect(0, 0, world.W, world.H);
+    }
+
     drawIsland();
-    drawPond(t);
-    drawFarm(t);          // 农田画在地面层
+
+    if (world.hasPond) drawPond(t);
+    if (world.scene === 'beach') drawFarm(t);   // 农田画在地面层
+
+    // 营地：还没搭工作台的地方画一块虚线空地，搭好了就画真的工作台
+    if (!hasBenchHere()) drawBenchSpot();
 
     const list = [];
     // 砍掉的树和挖掉的石头也要画（树桩 / 碎石），所以不再过滤 alive
     for (const tr of state.trees) list.push(tr);
     for (const rk of state.rocks) list.push(rk);
     for (const b of state.bushes) list.push(b);
+    for (const v of state.vines) list.push(v);
     for (const s of state.shells) if (s.alive) list.push(s);
-    if (state.rare.active) list.push({ kind: 'rare', x: state.rare.x, y: state.rare.y });
-    if (state.hasBench) list.push({ kind: 'bench', x: world.bench.x, y: world.bench.y });
-    if (state.hasCampfire) list.push({ kind: 'campfire', x: world.campfire.x, y: world.campfire.y });
+    if (state.rare.active && world.scene === 'beach') {
+      list.push({ kind: 'rare', x: state.rare.x, y: state.rare.y });
+    }
+    if (hasBenchHere()) {
+      list.push({ kind: 'bench', x: world.bench.x, y: world.bench.y });
+    }
+    if (state.hasCampfire && world.scene === 'beach') {
+      list.push({ kind: 'campfire', x: world.campfire.x, y: world.campfire.y });
+    }
     list.push({ kind: 'player', x: state.player.x, y: state.player.y });
     list.sort((a, b) => a.y - b.y);
 
@@ -2791,6 +4441,7 @@
       if (e.kind === 'tree') drawTree(e);
       else if (e.kind === 'rock') drawRock(e);
       else if (e.kind === 'berry') drawBush(e);
+      else if (e.kind === 'vine') drawVine(e);
       else if (e.kind === 'shell') drawShell(e);
       else if (e.kind === 'rare') drawRare();
       else if (e.kind === 'bench') drawBench();
@@ -2800,7 +4451,7 @@
 
     drawFishingLine(t);
 
-    drawNight();            // 夜色盖在整个画面上
+    drawNight();            // 夜色 / 山洞的黑暗盖在整个画面上
 
     // 提示性质的东西画在夜色之上，晚上也看得清
     drawContactProgress();
@@ -2895,13 +4546,17 @@
   }
 
   /**
-   * 采集一棵树 / 一块石头 / 一堆燧石 / 一丛浆果 / 一个贝壳
-   * 注意：浆果丛摘完不会消失，只是没果子了；贝壳捡走会消失，等潮水再冲上来
+   * 采集一棵树 / 一块石头 / 一堆燧石 / 一丛浆果 / 一个贝壳 / 一根藤蔓
+   * 注意：浆果丛和藤蔓采完不会消失，只是没得采了；贝壳捡走会消失，等潮水再冲上来
    */
   function harvest(ent) {
     if (!ent || state.gameOver) return;
-    // 浆果丛看"有没有结果"，其它资源看"还在不在"
-    if (ent.kind === 'berry' ? !ent.ripe : !ent.alive) return;
+    // 浆果丛和藤蔓看"有没有可采的"，其它资源看"还在不在"
+    if (ent.kind === 'berry' || ent.kind === 'vine') {
+      if (!ent.ripe) return;
+    } else if (!ent.alive) {
+      return;
+    }
 
     state.contact.target = null;
     state.contact.t = 0;
@@ -2915,6 +4570,16 @@
       showToast('浆果 +1');
       addFloat(ent.x, ent.y - ent.r * 1.5, '+1');
       sfx('berry');
+      buzz('tap');
+
+    } else if (ent.kind === 'vine') {
+      // 藤蔓：采下能用的那一截，藤本身还挂着
+      ent.ripe = false;
+      ent.regrow = REGROW_VINE;
+      state.vine += 1;
+      showToast('藤蔓 +1');
+      addFloat(ent.x, ent.y - ent.r * 1.6, '+1');
+      sfx('rustle');
       buzz('tap');
 
     } else if (ent.kind === 'shell') {
@@ -2960,6 +4625,17 @@
       sfx('mine');
       buzz('mine');
       useTool('pick');            // 石镐用掉一次耐久
+
+      // 拿石镐敲矿脉，有概率多掉一块铁矿
+      if (state.hasPick) {
+        const chance = ent.ore ? IRON_CHANCE_ORE : IRON_CHANCE;
+        if (Math.random() < chance) {
+          state.iron += 1;
+          addFloat(ent.x + 14, ent.y - ent.r * 1.9, '铁 +1');
+          showToast('铁矿 +1 · 石镐敲出来的');
+          sfx('flint');
+        }
+      }
     }
 
     syncResourceUI();
@@ -3010,21 +4686,34 @@
     for (const e of state.trees.concat(state.rocks)) {
       if (!e.alive) continue;
       const d = Math.hypot(p.x - e.x, p.y - e.y);
-      const reach = e.r * 0.75 + PLAYER_R + 6;
+      // 石头缩小了，判定放宽一点，不然要贴得很死才挖得到
+      const reach = e.kind === 'rock' ? (e.r + PLAYER_R + 10)
+                                      : (e.r * 0.75 + PLAYER_R + 6);
       if (d <= reach && d < bestD) {
         bestD = d;
         best = e;
       }
     }
 
-    // 浆果丛：只有结果的时候才算目标
+    // 浆果丛：只有结果的时候才算目标（丛变小了，判定放宽一点才好踩到）
     for (const b of state.bushes) {
       if (!b.ripe) continue;
       const d = Math.hypot(p.x - b.x, p.y - b.y);
-      const reach = b.r * 0.8 + PLAYER_R + 6;
+      const reach = b.r + PLAYER_R + 11;
       if (d <= reach && d < bestD) {
         bestD = d;
         best = b;
+      }
+    }
+
+    // 藤蔓：长好之后才算目标
+    for (const v of state.vines) {
+      if (!v.ripe) continue;
+      const d = Math.hypot(p.x - v.x, p.y - v.y);
+      const reach = v.r + PLAYER_R + 11;
+      if (d <= reach && d < bestD) {
+        bestD = d;
+        best = v;
       }
     }
 
@@ -3069,12 +4758,13 @@
     state.contact.t += dt;
     const need = contactNeed(target);
 
-    // 采集过程中按节奏响几下轻轻的凿击声，让人知道"正在采"
-    const beats = 3;
+    // 采集过程中按节奏响几下：砍树是凿击声，摸浆果和藤蔓是叶子窸窣声
+    const leafy = (target.kind === 'berry' || target.kind === 'vine');
+    const beats = leafy ? 2 : 3;
     const beat = Math.floor((state.contact.t / need) * beats);
     if (beat > state.contact.beat && beat < beats) {
       state.contact.beat = beat;
-      sfx('tap');
+      sfx(leafy ? 'rustle' : 'tap');
     }
 
     if (state.contact.t >= need) harvest(target);
@@ -3146,14 +4836,23 @@
       }
     }
 
+    // 藤蔓：采掉的藤过一阵子重新长好
+    for (const v of state.vines) {
+      if (!v.ripe) {
+        v.regrow -= dt;
+        if (v.regrow <= 0) {
+          v.regrow = 0;
+          v.ripe = true;
+        }
+      }
+    }
+
     updateRare(dt);
   }
 
-  /**
-   * 稀有的燧石堆：隔一阵子在岛上随机冒出一处，一段时间没采就自己沉回沙里
-   * 一次只会有一处，采掉之后要再等下一处
-   */
+  /** 燧石堆只在海滩出现，其它场景不刷新 */
   function updateRare(dt) {
+    if (world.scene !== 'beach') return;
     const r = state.rare;
 
     if (!r.active) {
@@ -3176,7 +4875,7 @@
     }
   }
 
-  /** 在岛上一处随机、可站立、离玩家不太近的位置放下燧石堆 */
+  /** 在海滩上一处随机、可站立、离玩家不太近的位置放下燧石堆 */
   function spawnRare() {
     const r = state.rare;
     const p = state.player;
@@ -3188,7 +4887,7 @@
       if (!isWalkable(x, y)) continue;
       if (Math.hypot(x - p.x, y - p.y) < 70) continue;          // 别在脚边冒出来
       if (isNearFarm(x, y) || isNearCampfire(x, y)) continue;   // 别挡住农田和篝火
-      if (inPond(x, y, 1.35)) continue;
+      if (world.hasPond && inPond(x, y, 1.35)) continue;
 
       // 别跟树、石头叠在一起
       let clash = false;
@@ -3212,7 +4911,284 @@
     r.wait = 8;
   }
 
-  /** 摇杆驱动角色移动：按方向和力度前进，撞到海 / 水塘就停住 */
+  // ==================================================================
+  // 场景切换
+  // 每个场景里的资源状态各自保存，来回走的时候不会重置
+  // ==================================================================
+
+  /** 把当前场景里资源的状态存起来，等回来时还原 */
+  function stashScene() {
+    state.sceneStore[state.scene] = {
+      trees: state.trees,
+      rocks: state.rocks,
+      bushes: state.bushes,
+      vines: state.vines,
+      shells: state.shells,
+      rare: {
+        active: state.rare.active,
+        alive: state.rare.alive,
+        x: state.rare.x,
+        y: state.rare.y,
+        life: state.rare.life,
+        wait: state.rare.wait,
+        appear: state.rare.appear
+      }
+    };
+  }
+
+  /** 取出某个场景存着的资源，第一次来就现生成一份 */
+  function restoreScene(id) {
+    const saved = state.sceneStore[id];
+    if (saved) {
+      state.trees = saved.trees;
+      state.rocks = saved.rocks;
+      state.bushes = saved.bushes;
+      state.vines = saved.vines;
+      state.shells = saved.shells;
+      state.rare.active = saved.rare.active;
+      state.rare.alive = saved.rare.alive;
+      state.rare.x = saved.rare.x;
+      state.rare.y = saved.rare.y;
+      state.rare.life = saved.rare.life;
+      state.rare.wait = saved.rare.wait;
+      state.rare.appear = saved.rare.appear;
+    } else {
+      buildEntities();
+      state.rare.active = false;
+      state.rare.alive = false;
+      state.rare.life = 0;
+      state.rare.wait = 18;
+      state.rare.appear = 0;
+    }
+  }
+
+  /**
+   * 切到另一个场景
+   * spawn: 'fromBeach' 从海滩上来 / 'fromForest' 从密林进来 / 'fromCave' / 'fromSummit'
+   */
+  function switchScene(id, spawn) {
+    if (SCENE_LIST.indexOf(id) < 0) return;
+    if (state.scene === id) return;
+
+    stashScene();
+
+    state.scene = id;
+    world.scene = id;
+    layoutWorld();       // 换地形
+    restoreScene(id);    // 换资源
+    layoutEntities();    // 资源摆到屏幕上
+
+    // 进洞 / 上山之类的落脚点
+    const p = state.player;
+    if (spawn === 'fromBeach') {
+      p.x = world.W * 0.5;
+      p.y = world.H * 0.80;
+    } else if (spawn === 'fromCave') {
+      // 从山洞出来，站回洞口前面
+      p.x = world.caveMouth.x;
+      p.y = world.caveMouth.y + 56;
+    } else if (spawn === 'fromSummit') {
+      p.x = world.W * 0.5;
+      p.y = world.H * 0.20;
+    } else {
+      p.x = world.W * 0.5;
+      p.y = world.H * 0.78;
+    }
+    if (!isWalkable(p.x, p.y)) {
+      p.x = world.W * 0.5;
+      p.y = world.H * 0.55;
+    }
+
+    // 清掉上一张地图留下的临时状态
+    state.contact.target = null;
+    state.contact.t = 0;
+    state.contact.beat = 0;
+    state.fishing.active = false;
+    fishPanelEl.classList.remove('show');
+    diaryEl.classList.remove('show');
+    bagPanelEl.classList.remove('show');
+    state.actionKey = '';
+    craftBtnShown = false;
+    closeCraftMenu();
+    joyReset();
+
+    sceneKeyCache = '';
+    syncSceneUI();
+    syncActionUI();
+    syncCraftUI();
+    syncGoalUI();
+    saveGame();
+
+    sfx('scene');
+    buzz('tap');
+  }
+
+  /** 过河：有木桥就直接过；没有桥但条件都满足，就当场把桥架起来 */
+  function crossRiver() {
+    if (!state.hasBridge) {
+      // 和制作菜单里的木桥用同一个解锁条件
+      if (!state.hasAxe) {
+        showToast('要先做好石斧，才砍得动架桥的木头');
+        return;
+      }
+      if (state.wood < WOOD_COST_BRIDGE || state.vine < VINE_COST_BRIDGE) {
+        showToast('河太深了 · 木桥要木材 ' + WOOD_COST_BRIDGE + ' · 藤蔓 ' + VINE_COST_BRIDGE);
+        return;
+      }
+      state.wood -= WOOD_COST_BRIDGE;
+      state.vine -= VINE_COST_BRIDGE;
+      state.hasBridge = true;
+      showToast('木桥架好了');
+      addFloat(world.crossing.x, world.crossing.y - 30, '桥');
+      sfx('build');
+      buzz('craft');
+      syncResourceUI();
+      syncCraftMenu();
+    }
+    showToast('走过木桥 · 进入密林');
+    switchScene('forest', 'fromBeach');
+  }
+
+  /** 从密林上山顶：要登山镐 */
+  function climbToSummit() {
+    if (!state.hasClimb) {
+      showToast('坡太陡 · 需要登山镐');
+      return;
+    }
+    showToast('攀上岩壁 · 到了山顶');
+    switchScene('summit', 'fromForest');
+  }
+
+  /** 进山洞：没火把也能进，但里面什么都看不见 */
+  function enterCave() {
+    if (!state.hasTorch) {
+      showToast('洞里太黑了 · 最好先做个火把');
+    }
+    switchScene('cave', 'fromForest');
+  }
+
+  // ---------- 日记本：能一页一页翻的小面板 ----------
+
+  // 日记的内容：这是整条剧情线的骨架，前人留下的四页
+  const DIARY_PAGES = [
+    '第 47 天。\n船没了，但岛上有淡水，有柴，能活。\n我在沙滩上搭了个棚子，等潮水把剩下的东西冲上来。',
+    '第 130 天。\n桥修好了，架在原来那几根桥桩上。\n林子那边的山脚有个洞，洞里比外面暖和，晚上我就睡在里面。',
+    '第 210 天。\n电池是我从船上拆下来的，只剩这一块了。\n山顶那座塔我搭了一半——架子立住了，可我没力气再往上爬。',
+    '如果有人看到这本子：\n去山洞拿电池，去山顶发信号。\n别像我一样，等到没力气才想起来求救。'
+  ];
+
+  let diaryIndex = 0;
+
+  /** 把当前这一页画到面板上 */
+  function renderDiaryPage() {
+    diaryPageEl.textContent = DIARY_PAGES[diaryIndex];
+    diaryNumEl.textContent = (diaryIndex + 1) + ' / ' + DIARY_PAGES.length;
+    diaryPrevBtn.disabled = (diaryIndex === 0);
+
+    // 最后一页的按钮变成"看完了"，点一下就是合上本子
+    const last = (diaryIndex >= DIARY_PAGES.length - 1);
+    diaryNextBtn.disabled = false;
+    diaryNextBtn.textContent = last ? '看完了' : '下一页';
+  }
+
+  function openDiary() {
+    diaryIndex = 0;
+    renderDiaryPage();
+    diaryEl.classList.add('show');
+    sfx('open');
+  }
+
+  function closeDiary() {
+    diaryEl.classList.remove('show');
+    sfx('close');
+
+    // 第一次读完，记一笔，并给一句指引
+    if (!state.diaryRead) {
+      state.diaryRead = true;
+      addFloat(world.diary.x, world.diary.y - 30, '读完了');
+      showToast('日记：去山洞拿电池，去山顶发信号');
+      syncActionUI();
+    }
+  }
+
+  diaryPrevBtn.addEventListener('click', () => {
+    if (diaryIndex > 0) {
+      diaryIndex -= 1;
+      renderDiaryPage();
+      sfx('click');
+    }
+  });
+
+  diaryNextBtn.addEventListener('click', () => {
+    if (diaryIndex < DIARY_PAGES.length - 1) {
+      diaryIndex += 1;
+      renderDiaryPage();
+      sfx('click');
+    } else {
+      closeDiary();
+    }
+  });
+
+  diaryCloseBtn.addEventListener('click', closeDiary);
+  diaryEl.addEventListener('click', e => {
+    if (e.target === diaryEl) closeDiary();
+  });
+
+  /** 读日记本：打开面板，一页一页翻 */
+  function readDiary() {
+    if (state.gameOver) return;
+    openDiary();
+  }
+
+  /** 捡起山洞里的废弃电池 */
+  function takeBattery() {
+    if (state.hasBattery) return;
+    state.hasBattery = true;
+    showToast('拿到废弃电池 · 去山顶的信号塔');
+    addFloat(world.battery.x, world.battery.y - 34, '电池 +1');
+    sfx('build');
+    buzz('craft');
+    syncActionUI();
+  }
+
+  /** 启动山顶的信号塔：有电池就通关，没电池就提示 */
+  function startTower() {
+    if (state.rescued) return;
+
+    if (!state.hasBattery) {
+      showToast('没有电力，无法启动');
+      sfx('miss');
+      return;
+    }
+
+    state.rescued = true;
+    state.hasBattery = false;
+
+    sfx('dawn');
+    buzz('craft');
+    showEnding();
+  }
+
+  /** 通关画面 */
+  function showEnding() {
+    state.fishing.active = false;
+    fishPanelEl.classList.remove('show');
+    diaryEl.classList.remove('show');
+    bagPanelEl.classList.remove('show');
+    joyReset();
+    closeCraftMenu();
+    clearSave();
+    endingEl.classList.add('show');
+    syncActionUI();
+    syncCraftUI();
+  }
+
+  /** 判断从当前位置能不能挪到 (x, y) */
+  function canStep(x, y) {
+    return isWalkable(x, y);
+  }
+
+  /** 摇杆驱动角色移动：按方向和力度前进，撞到海 / 水塘 / 陡坡就停住 */
   function updatePlayer(dt) {
     const p = state.player;
     const nx = state.joy.nx;
@@ -3229,8 +5205,8 @@
     const my = ny * speed * dt;
 
     // 分轴移动：撞到不可走的地方时只停住那个方向，可以贴着岸边滑动
-    if (isWalkable(p.x + mx, p.y)) p.x += mx;
-    if (isWalkable(p.x, p.y + my)) p.y += my;
+    if (canStep(p.x + mx, p.y)) p.x += mx;
+    if (canStep(p.x, p.y + my)) p.y += my;
 
     // 左右翻转朝向
     if (nx > 0.12) p.facing = 1;
@@ -3240,7 +5216,10 @@
     p.bob += dt * (6 + 10 * mag);
   }
 
-  /** 开始钓鱼（需要站在水边）：先甩竿，然后等鱼咬钩 */
+  /**
+   * 开始钓鱼（需要站在水边）
+   * 玩法：轨道上的指针来回扫，在中间绿区里点一下收杆
+   */
   function startFishing() {
     if (state.gameOver || state.fishing.active) return;
     if (!isNearPond(state.player.x, state.player.y)) {
@@ -3250,23 +5229,28 @@
 
     const f = state.fishing;
     f.active = true;
-    f.phase = 'wait';
+    f.pos = 0;
+    f.dir = 1;
     f.t = 0;
-
-    // 有鱼竿：咬钩更快、收杆窗口更宽，这是做鱼竿的意义
-    const wMin = state.hasRod ? ROD_WAIT_MIN : FISH_WAIT_MIN;
-    const wMax = state.hasRod ? ROD_WAIT_MAX : FISH_WAIT_MAX;
-    f.wait = wMin + Math.random() * (wMax - wMin);
-    f.window = state.hasRod ? ROD_WINDOW : FISH_WINDOW;
+    f.cool = 0;
+    f.inZone = false;
 
     state.contact.target = null;
     state.contact.t = 0;
     state.contact.beat = 0;
 
+    // 绿区和"完美区"的位置由 CSS 算，这里只给宽度
+    const half = FISH_ZONE * 100;
+    fishZoneEl.style.left = (50 - half) + '%';
+    fishZoneEl.style.width = (half * 2) + '%';
+    fishPerfectEl.style.left = (50 - FISH_PERFECT * 100) + '%';
+    fishPerfectEl.style.width = (FISH_PERFECT * 200) + '%';
+    fishMarkerEl.style.left = '0%';
+
     fishPanelEl.classList.add('show');
-    fishPanelEl.classList.remove('bite');
-    fishLabelEl.textContent = '等鱼咬钩…';
-    fishFillEl.style.width = '0%';
+    fishPanelEl.classList.remove('hit', 'miss');
+    fishLabelEl.textContent = '鱼在试探…';
+    fishHintEl.textContent = '指针到中间绿区时点一下';
 
     sfx('cast');        // 甩竿
     sfx('plop');        // 浮漂入水（内部带一点延迟）
@@ -3276,31 +5260,33 @@
 
   /**
    * 结束这次钓鱼
-   * result: 'catch' 钓到 / 'early' 收杆太早 / 'miss' 错过时机
+   * result: 'catch' 钓到 / 'perfect' 完美 / 'miss' 时机不对 / 'timeout' 太久没钓上来
    */
   function endFishing(result) {
     const f = state.fishing;
     if (!f.active) return;
 
     f.active = false;
-    f.phase = 'idle';
     f.t = 0;
+    f.cool = 0.35;
 
-    fishPanelEl.classList.remove('show', 'bite');
-    fishLabelEl.textContent = '等鱼咬钩…';
-    fishFillEl.style.width = '0%';
+    fishPanelEl.classList.remove('show');
 
-    if (result === 'catch') {
+    if (result === 'catch' || result === 'perfect') {
       state.fish += 1;
-      showToast('鱼 +1 · 去篝火边烤一下更顶饱');
+      if (result === 'perfect') {
+        showToast('完美收杆！鱼 +1');
+      } else {
+        showToast('鱼 +1 · 去篝火边烤一下更顶饱');
+      }
       addFloat(state.player.x, state.player.y - 46, '+1');
       sfx('catch');
       buzz('catch');
-    } else if (result === 'early') {
-      showToast('收杆太早，鱼被吓跑了');
+    } else if (result === 'timeout') {
+      showToast('鱼跑了…再试一次');
       sfx('miss');
     } else {
-      showToast('鱼跑了…再试一次');
+      showToast('差一点，再试一次');
       sfx('miss');
     }
 
@@ -3309,42 +5295,49 @@
     syncActionUI();
   }
 
-  /** 点「收杆」：咬钩时收杆算成功，提前收就是空杆 */
+  /** 点「收杆」：指针在绿区里就算钓到，正中那一小条算完美 */
   function reel() {
     const f = state.fishing;
-    if (!f.active) return;
-    if (f.phase === 'bite') endFishing('catch');
-    else endFishing('early');
+    if (!f.active || f.cool > 0) return;
+
+    const dist = Math.abs(f.pos - 0.5);
+    if (dist <= FISH_PERFECT) endFishing('perfect');
+    else if (dist <= FISH_ZONE) endFishing('catch');
+    else endFishing('miss');
   }
 
-  /** 钓鱼推进：等待 → 咬钩 → 窗口内没点就跑了 */
+  /** 钓鱼推进：指针来回扫，太久没点鱼就跑了 */
   function updateFishing(dt) {
     const f = state.fishing;
     if (!f.active) return;
 
     f.t += dt;
+    if (f.cool > 0) f.cool = Math.max(0, f.cool - dt);
 
-    if (f.phase === 'wait') {
-      if (f.t >= f.wait) {
-        // 咬钩了！
-        f.phase = 'bite';
-        f.t = 0;
-        fishPanelEl.classList.add('bite');
-        fishLabelEl.textContent = '咬钩了！点一下收杆';
-        fishFillEl.style.width = '100%';
-        sfx('bite');
-        buzz('bite');
-        state.actionKey = '';   // 让右下角按钮立刻变成「收杆!」
-        syncActionUI();
-      }
-      return;
+    // 指针来回扫：撞到两端就掉头
+    f.pos += f.dir * FISH_SWEEP_SPEED * dt;
+    if (f.pos >= 1) {
+      f.pos = 2 - f.pos;
+      f.dir = -1;
+    } else if (f.pos <= 0) {
+      f.pos = -f.pos;
+      f.dir = 1;
     }
 
-    if (f.phase === 'bite') {
-      const k = Math.max(0, 1 - f.t / f.window);
-      fishFillEl.style.width = (k * 100).toFixed(1) + '%';
-      if (f.t >= f.window) endFishing('miss');
+    fishMarkerEl.style.left = (f.pos * 100).toFixed(1) + '%';
+
+    // 进了绿区就把提示和按钮点亮，让人有"就是现在"的感觉
+    const inZone = Math.abs(f.pos - 0.5) <= FISH_ZONE;
+    if (inZone !== f.inZone) {
+      f.inZone = inZone;
+      fishLabelEl.textContent = inZone ? '现在！' : '鱼在试探…';
+      fishHintEl.textContent = inZone ? '就是这一下' : '指针到中间绿区时点一下';
+      if (inZone) sfx('tick');   // 进绿区时轻轻一声，靠耳朵也能踩点
+      state.actionKey = '';      // 让右下角按钮重新刷成高亮 / 普通
+      syncActionUI();
     }
+
+    if (f.t >= FISH_TIME_LIMIT) endFishing('timeout');
   }
 
   /** 在篝火边烤鱼：生鱼 → 熟鱼（恢复的饥饿多一倍） */
@@ -3373,10 +5366,10 @@
   function farmAction() {
     const f = state.farm;
 
-    // 1) 还没建：需要工作台 + 木材石头
+    // 1) 还没建：需要海滩营地的工作台 + 木材石头
     if (!f.built) {
-      if (!state.hasBench) {
-        showToast('要先做好工作台');
+      if (!state.bench.beach) {
+        showToast('要先在海滩营地搭个工作台');
         return;
       }
       if (state.wood < WOOD_COST_FARM || state.stone < STONE_COST_FARM) {
@@ -3460,8 +5453,10 @@
     }
 
     sfx('eat');
+    state.ateOnce = true;     // 软引导第一步：吃过东西就算过关
     syncResourceUI();
     syncHungerUI();
+    syncGoalUI();
   }
 
   /** 饥饿度耗尽：弹出"游戏结束"，并停掉所有操作 */
@@ -3470,9 +5465,10 @@
     state.gameOver = true;
 
     state.fishing.active = false;
-    state.fishing.phase = 'idle';
     state.fishing.t = 0;
-    fishPanelEl.classList.remove('show', 'bite');
+    fishPanelEl.classList.remove('show');
+    diaryEl.classList.remove('show');
+    bagPanelEl.classList.remove('show');
     state.contact.target = null;
     state.contact.t = 0;
     state.player.moving = false;
@@ -3484,6 +5480,7 @@
 
     overlayEl.classList.add('show');
     syncActionUI();
+    syncCraftUI();
   }
 
   /** 每帧更新：昼夜、饥饿、钓鱼、作物、移动、贴脸采集 */
@@ -3504,13 +5501,15 @@
     updateWorld(dt);
     syncDayUI();
 
-    // 2) 饥饿度随时间下降，夜里额外快一点
-    const dark = dayPhase(state.clock).dark;
-    state.hunger = Math.max(0, state.hunger - HUNGER_DRAIN * (1 + dark * NIGHT_HUNGER) * dt);
-    syncHungerUI();
-    if (state.hunger <= 0) {
-      endGame();
-      return;
+    // 2) 饥饿度随时间下降，夜里额外快一点（开发者选项可以关掉）
+    if (!state.devUnhungry) {
+      const dark = dayPhase(state.clock).dark;
+      state.hunger = Math.max(0, state.hunger - HUNGER_DRAIN * (1 + dark * NIGHT_HUNGER) * dt);
+      syncHungerUI();
+      if (state.hunger <= 0) {
+        endGame();
+        return;
+      }
     }
 
     // 3) 声音氛围：低饥饿的心跳、偶尔的鸟叫、定时存档
@@ -3544,8 +5543,11 @@
     updatePlayer(dt);
     updateContact(dt);
 
-    // 7) 互动按钮随情境变化
+    // 7) 互动按钮随情境变化 + 制作按钮显隐
     syncActionUI();
+    syncCraftUI();
+    syncSceneUI();
+    syncGoalUI();
   }
 
   // ==================================================================
@@ -3556,6 +5558,8 @@
     woodNumEl.textContent = state.wood;
     stoneNumEl.textContent = state.stone;
     flintNumEl.textContent = state.flint;
+    vineNumEl.textContent = state.vine;
+    ironNumEl.textContent = state.iron;
     berryNumEl.textContent = state.berry;
     shellNumEl.textContent = state.shell;
     fishNumEl.textContent = state.fish;
@@ -3568,6 +5572,83 @@
     fishChipEl.classList.toggle('empty', state.fish <= 0);
     foodChipEl.classList.toggle('empty', state.food <= 0);
     cookedChipEl.classList.toggle('empty', state.cooked <= 0);
+
+    // 背包按钮上的小绿点：有能吃的东西时亮起来
+    const foodTotal = state.berry + state.shell + state.fish + state.food + state.cooked;
+    bagDotEl.classList.toggle('on', foodTotal > 0);
+  }
+
+  // ---------- 背包面板 ----------
+
+  function openBag() {
+    if (state.gameOver || state.rescued) return;
+    syncResourceUI();
+    bagPanelEl.classList.add('show');
+    sfx('open');
+  }
+
+  function closeBag() {
+    if (!bagPanelEl.classList.contains('show')) return;
+    bagPanelEl.classList.remove('show');
+    sfx('close');
+  }
+
+  // ---------- 顶部：当前场景名 ----------
+  let sceneKeyCache = '';
+
+  /** 刷新顶部那行场景名，切场景时才会动 DOM */
+  function syncSceneUI() {
+    if (sceneKeyCache === state.scene) return;
+    sceneKeyCache = state.scene;
+    const info = SCENE_INFO[state.scene] || SCENE_INFO.beach;
+    sceneNameEl.textContent = info.name;
+  }
+
+  // ---------- 软引导：一次只给一个目标 ----------
+
+  /**
+   * 根据当前进度算出"现在该干什么"
+   * 全部做完了就返回 null，界面上那条提示也就不见了
+   */
+  function getGoal() {
+    if (state.rescued) return null;
+    if (!state.ateOnce) return '饿了 · 先找点吃的（浆果、贝壳都行）';
+    if (!state.bench.beach) return '捡木材和石头，在营地搭个工作台';
+    if (!state.hasAxe) return '做把石斧，砍树才快';
+    if (!state.hasBridge) return '河边好像能过去 · 需要木桥';
+    if (!state.diaryRead) return '林子里好像留着什么东西';
+    if (!state.hasCampfire) return '回营地生个火 · 后面要靠它引火';
+    if (!state.hasTorch) return '洞里太黑 · 先做个火把';
+    if (!state.hasBattery) return '山洞深处有东西可以拿';
+    if (!state.hasPick) return '铁矿要用石镐才敲得出来';
+    if (!state.hasClimb) return '想上山顶 · 还差一把登山镐';
+    return '去山顶启动信号塔';
+  }
+
+  let goalCache = '__init__';
+
+  /** 目标变了才动 DOM，变了的时候轻轻闪一下 */
+  function syncGoalUI() {
+    const g = getGoal();
+    if (g === goalCache) return;
+
+    const first = (goalCache === '__init__');
+    goalCache = g;
+
+    if (!g) {
+      goalChipEl.classList.remove('show', 'pop');
+      return;
+    }
+
+    goalTextEl.textContent = g;
+    goalChipEl.classList.add('show');
+
+    // 不是第一次显示就闪一下，表示"换目标了"
+    if (!first) {
+      goalChipEl.classList.remove('pop');
+      void goalChipEl.offsetWidth;
+      goalChipEl.classList.add('pop');
+    }
   }
 
   // ---------- 顶部：第几天 + 时段 ----------
@@ -3629,71 +5710,82 @@
    * 配方表：制作菜单就是按这张表生成的
    * 想加新配方，往数组里加一项就行，不用动界面代码
    *   id          唯一名字，存档和 craft() 用它
-   *   wood/stone/flint  需要多少材料
-   *   locked()    是否还没解锁（没解锁就整行压暗，点不了）
+   *   cost        需要多少材料
+   *   req()       解锁条件：返回一句"还差什么"就说明还没解锁，返回 null 就是能做
    *   done()      是否已经做过（做过就显示 doneLabel 并且不能再点）
    *   note()      做了之后在材料那行额外显示的信息（比如工具耐用度）
    *   apply()     真正生效的那一下
    *
-   * 解锁顺序：先造工作台，工作台造好之后其它配方才会亮起来
+   * 解锁是一条链，不是"建好工作台就全开"：
+   *   工作台 → 石斧 / 篝火（这两样一开始就能做）
+   *   石斧 → 石镐 → 登山镐（铁矿要用石镐敲）
+   *   篝火 → 火把（从火里引火）
+   *   石斧 + 藤蔓 → 木桥
+   * 工作台本身不在这张表里：它是走到空地上直接建起来的（见 benchAction）
    */
   const RECIPES = [
     {
-      id: 'bench', name: '工作台', desc: '第一步：造好它，其它配方才会解锁',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 h18"/><path d="M6 12 v8"/><path d="M18 12 v8"/><path d="M9 12 v-5 h7 v5" fill="#c8a377"/></svg>',
-      wood: WOOD_COST_BENCH, stone: STONE_COST_BENCH, flint: 0,
-      done: () => state.hasBench, doneLabel: '已建造',
-      msg: '工作台建好了 · 其它配方已解锁',
-      apply: () => { state.hasBench = true; }
+      id: 'campfire', name: '篝火', desc: '夜里照亮周围，还能把生鱼烤熟 · 不用工具就能搭',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21 h14"/><path d="M7 21 l7-5 7 5" fill="none"/><path d="M12 15 q-3.5-2.5-1-6 q2 2 2.5 0 q3 3.5-1.5 6" fill="#f0a24a"/></svg>',
+      cost: { wood: 4, stone: 2 },
+      done: () => state.hasCampfire, doneLabel: '已建造',
+      msg: '篝火点起来了 · 靠近可以烤鱼',
+      apply: () => { state.hasCampfire = true; }
     },
     {
       id: 'axe', name: '石斧', desc: '砍树一下就好 · 用 ' + AXE_USES + ' 次会坏',
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21 L15 8"/><path d="M12 4 q6 -2 8 4 q-5 3 -9 1 z" fill="#c9c9c0"/></svg>',
-      wood: WOOD_COST_AXE, stone: 0, flint: 0,
-      locked: () => !state.hasBench,
+      cost: { wood: WOOD_COST_AXE },
       done: () => state.hasAxe, doneLabel: '已装备',
       note: () => state.hasAxe ? '还能砍 ' + state.axeUses + ' 次' : '',
       msg: '石斧做好了 · 砍树更快',
       apply: () => { state.hasAxe = true; state.axeUses = AXE_USES; }
     },
     {
-      id: 'pick', name: '石镐', desc: '挖石头一下就好，每次得 2 石头 · 需要燧石做刃',
+      id: 'pick', name: '石镐', desc: '挖石头一下就好，每次得 2 石头 · 敲矿脉还会掉铁矿',
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21 L14 9"/><path d="M4 9 q8 -7 16 0"/><path d="M4 9 l1.5 3"/><path d="M20 9 l-1.5 3"/></svg>',
-      wood: 3, stone: 3, flint: 1,
-      locked: () => !state.hasBench,
+      cost: { wood: 3, stone: 3, flint: 1 },
+      // 要先有斧子才能削出镐柄
+      req: () => state.hasAxe ? null : '要先做好石斧',
       done: () => state.hasPick, doneLabel: '已装备',
       note: () => state.hasPick ? '还能挖 ' + state.pickUses + ' 次' : '',
       msg: '石镐做好了 · 挖矿更快更多',
       apply: () => { state.hasPick = true; state.pickUses = PICK_USES; }
     },
     {
-      id: 'campfire', name: '篝火', desc: '夜里照亮周围，还能把生鱼烤熟',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21 h14"/><path d="M7 21 l7-5 7 5" fill="none"/><path d="M12 15 q-3.5-2.5-1-6 q2 2 2.5 0 q3 3.5-1.5 6" fill="#f0a24a"/></svg>',
-      wood: 5, stone: 3, flint: 0,
-      locked: () => !state.hasBench,
-      done: () => state.hasCampfire, doneLabel: '已建造',
-      msg: '篝火点起来了 · 靠近可以烤鱼',
-      apply: () => { state.hasCampfire = true; }
-    },
-    {
-      id: 'torch', name: '火把', desc: '夜里的照明范围大一圈 · 需要燧石打火',
+      id: 'torch', name: '火把', desc: '进山洞必须带，不然里面几乎什么都看不见',
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21 v-9"/><path d="M12 8 q-3-2.5 0-6 q3 3.5 0 6" fill="#f0a24a"/></svg>',
-      wood: 2, stone: 0, flint: 1,
-      locked: () => !state.hasBench,
+      cost: { wood: WOOD_COST_TORCH, flint: FLINT_COST_TORCH },
+      // 火种要从篝火里引
+      req: () => state.hasCampfire ? null : '要先点起篝火，从火里引火',
       done: () => state.hasTorch, doneLabel: '已装备',
-      msg: '火把做好了 · 夜里看得更远',
+      msg: '火把点着了 · 进山洞看得见了',
       apply: () => { state.hasTorch = true; }
     },
     {
-      id: 'rod', name: '木鱼竿', desc: '鱼咬钩更快，收杆窗口也更宽',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21 L15 6"/><path d="M15 6 q4 6 1 11"/><circle cx="17" cy="19.5" r="1.6" fill="#4a3a2a" stroke="none"/></svg>',
-      wood: 3, stone: 1, flint: 0,
-      locked: () => !state.hasBench,
-      done: () => state.hasRod, doneLabel: '已装备',
-      msg: '鱼竿做好了 · 钓鱼更顺手',
-      apply: () => { state.hasRod = true; }
+      id: 'bridge', name: '木桥', desc: '架在海滩深处的河上，过去就是密林',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15 q9 -8 18 0"/><path d="M3 18 h18"/><path d="M7 15.5 v3"/><path d="M12 13.5 v4"/><path d="M17 15.5 v3"/></svg>',
+      cost: { wood: WOOD_COST_BRIDGE, vine: VINE_COST_BRIDGE },
+      // 这么多木头，没斧子砍不动
+      req: () => state.hasAxe ? null : '要先做好石斧，才砍得动架桥的木头',
+      done: () => state.hasBridge, doneLabel: '已架好',
+      msg: '木桥架好了 · 走到河边过河',
+      apply: () => { state.hasBridge = true; }
+    },
+    {
+      id: 'climb', name: '登山镐', desc: '有了它才能从密林爬上山顶',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#4a3a2a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21 L15 6"/><path d="M12 3 q6 0 8 6"/><path d="M20 9 l-3 -1"/><path d="M17 8 l-1 -3"/></svg>',
+      cost: { wood: WOOD_COST_CLIMB, iron: IRON_COST_CLIMB },
+      // 铁矿只有石镐敲得出来
+      req: () => state.hasPick ? null : '要先做好石镐，才敲得出铁矿',
+      done: () => state.hasClimb, doneLabel: '已装备',
+      msg: '登山镐做好了 · 密林里可以上山',
+      apply: () => { state.hasClimb = true; }
     }
   ];
+
+  // 材料名字和状态字段的对应关系，配方里只写 key 就行
+  const COST_LABEL = { wood: '木材', stone: '石头', flint: '燧石', vine: '藤蔓', iron: '铁矿' };
 
   const recipeRows = {};   // id → { row, btn, costEl }，界面上的那一行
 
@@ -3722,30 +5814,35 @@
     }
   }
 
+  /** 这条配方的材料是不是都够 */
+  function canAfford(r) {
+    for (const key in r.cost) {
+      if (state[key] < r.cost[key]) return false;
+    }
+    return true;
+  }
+
   /** 刷新每条配方的按钮状态和材料颜色 */
   function syncCraftMenu() {
     for (const r of RECIPES) {
       const row = recipeRows[r.id];
       if (!row) continue;
 
-      // 还没解锁：整行压暗，按钮显示"未解锁"
-      const locked = r.locked ? r.locked() : false;
-      row.row.classList.toggle('locked', locked);
+      const done = r.done();
 
-      if (locked) {
+      // 还没解锁：整行压暗，按钮写"未解锁"，材料那行写还差什么
+      const lock = (r.req && !done) ? r.req() : null;
+      row.row.classList.toggle('locked', !!lock);
+
+      if (lock) {
         row.btn.textContent = '未解锁';
         row.btn.disabled = true;
-        row.costEl.innerHTML = '<span class="lack">需要先造工作台</span>';
+        row.costEl.innerHTML = '<span class="lack">' + lock + '</span>';
         continue;
       }
 
-      const done = r.done();
-      const canWood = state.wood >= r.wood;
-      const canStone = state.stone >= r.stone;
-      const canFlint = state.flint >= r.flint;
-
       row.btn.textContent = done ? r.doneLabel : '制作';
-      row.btn.disabled = done || !canWood || !canStone || !canFlint;
+      row.btn.disabled = done || !canAfford(r);
 
       // 做过的工具显示还能用几次，没做的显示材料
       if (done && r.note) {
@@ -3753,17 +5850,12 @@
         continue;
       }
 
-      let cost = '';
-      if (r.wood > 0) cost += '木材 ' + costSpan(state.wood, r.wood, '×' + r.wood);
-      if (r.stone > 0) {
-        if (cost) cost += ' · ';
-        cost += '石头 ' + costSpan(state.stone, r.stone, '×' + r.stone);
+      const parts = [];
+      for (const key in r.cost) {
+        const label = COST_LABEL[key] || key;
+        parts.push(label + ' ' + costSpan(state[key], r.cost[key], '×' + r.cost[key]));
       }
-      if (r.flint > 0) {
-        if (cost) cost += ' · ';
-        cost += '燧石 ' + costSpan(state.flint, r.flint, '×' + r.flint);
-      }
-      row.costEl.innerHTML = cost;
+      row.costEl.innerHTML = parts.join(' · ');
     }
   }
 
@@ -3774,6 +5866,14 @@
 
   function openCraftMenu() {
     if (state.gameOver) return;
+    if (!hasBenchHere()) {
+      showToast('要先在营地搭个工作台');
+      return;
+    }
+    if (!isNearBench(state.player.x, state.player.y)) {
+      showToast('要走到工作台旁边才能制作');
+      return;
+    }
     syncCraftMenu();
     craftMenuEl.classList.add('show');
   }
@@ -3785,23 +5885,28 @@
   /** 制作：查配方表 → 扣材料 → 生效 */
   function craft(id) {
     if (state.gameOver) return;
+    if (!isNearBench(state.player.x, state.player.y)) {
+      showToast('要走到工作台旁边才能制作');
+      return;
+    }
 
     const r = RECIPES.find(x => x.id === id);
     if (!r) return;
-    if (r.locked && r.locked()) {
-      showToast('要先造好工作台');
-      return;
-    }
     if (r.done()) return;
 
-    if (state.wood < r.wood || state.stone < r.stone || state.flint < r.flint) {
+    // 解锁条件没满足：告诉他到底还差什么
+    const lock = r.req ? r.req() : null;
+    if (lock) {
+      showToast(lock);
+      return;
+    }
+
+    if (!canAfford(r)) {
       showToast('材料不够');
       return;
     }
 
-    state.wood -= r.wood;
-    state.stone -= r.stone;
-    state.flint -= r.flint;
+    for (const key in r.cost) state[key] -= r.cost[key];
     r.apply();
 
     showToast(r.msg);
@@ -3812,6 +5917,50 @@
     syncCraftMenu();
     state.actionKey = '';   // 让右下角按钮立刻刷新（篝火建好就能烤鱼了）
     syncActionUI();
+    syncCraftUI();
+  }
+
+  /**
+   * 制作按钮的显隐
+   * 只有「建好工作台」并且「站在工作台旁边」时，底部才出现"制作"
+   */
+  let craftBtnShown = false;
+
+  function syncCraftUI() {
+    const p = state.player;
+    const show = !state.gameOver && hasBenchHere() && isNearBench(p.x, p.y);
+    if (show === craftBtnShown) return;
+
+    craftBtnShown = show;
+    craftOpenBtn.classList.toggle('show', show);
+    if (!show) closeCraftMenu();
+  }
+
+  /** 在营地空地上搭工作台（材料够才能搭） */
+  function benchAction() {
+    if (state.gameOver) return;
+    if (hasBenchHere()) return;
+
+    if (state.wood < WOOD_COST_BENCH || state.stone < STONE_COST_BENCH) {
+      showToast('材料不够：木材 ' + WOOD_COST_BENCH + ' · 石头 ' + STONE_COST_BENCH);
+      return;
+    }
+
+    state.wood -= WOOD_COST_BENCH;
+    state.stone -= STONE_COST_BENCH;
+    state.bench[state.scene] = true;
+
+    showToast('工作台搭好了 · 这个营地也能制作了');
+    addFloat(world.bench.x, world.bench.y - 30, '完成');
+    sfx('build');
+    buzz('craft');
+
+    syncResourceUI();
+    syncCraftMenu();
+    state.actionKey = '';
+    syncActionUI();
+    syncCraftUI();
+    syncGoalUI();
   }
 
   // ---------- 右下角互动按钮 ----------
@@ -3834,19 +5983,18 @@
   function getContext() {
     const p = state.player;
 
-    // 钓鱼中：按钮变成「收杆」，鱼咬钩的那一下会高亮
+    // 钓鱼中：按钮变成「收杆」，指针进到绿区时高亮
     if (state.fishing.active) {
-      const biting = state.fishing.phase === 'bite';
       return {
         icon: 'reel',
-        label: biting ? '收杆!' : '收杆',
+        label: state.fishing.inZone ? '收杆!' : '收杆',
         type: 'reel',
         enabled: true,
-        hot: biting
+        hot: state.fishing.inZone
       };
     }
 
-    // 贴着的资源：树、石头、浆果丛、贝壳、燧石堆
+    // 贴着的资源：树、石头、浆果丛、藤蔓、贝壳、燧石堆
     const ct = state.contact.target;
     const near = (ct && (ct.alive || ct.ripe)) ? ct : findContactTarget();
     if (near) {
@@ -3859,14 +6007,81 @@
       if (near.kind === 'berry') {
         return { icon: 'plant', label: '摘浆果', type: 'harvest', ent: near, enabled: true };
       }
+      if (near.kind === 'vine') {
+        return { icon: 'plant', label: '采藤蔓', type: 'harvest', ent: near, enabled: true };
+      }
       if (near.kind === 'shell') {
         return { icon: 'take', label: '捡贝壳', type: 'harvest', ent: near, enabled: true };
       }
       return { icon: 'mine', label: '挖矿', type: 'harvest', ent: near, enabled: true };
     }
 
+    // ---------- 剧情道具和场景通道 ----------
+
+    // 海滩：河边的木桥
+    if (world.scene === 'beach' && isNearCrossing(p.x, p.y)) {
+      if (!state.hasBridge) {
+        const can = state.hasAxe &&
+                    state.wood >= WOOD_COST_BRIDGE && state.vine >= VINE_COST_BRIDGE;
+        return { icon: 'build', label: '架桥过河', type: 'cross', enabled: can };
+      }
+      return { icon: 'take', label: '过河', type: 'cross', enabled: true };
+    }
+
+    // 密林：山洞入口 / 上山的路 / 回海滩
+    if (world.scene === 'forest') {
+      if (isNearCaveMouth(p.x, p.y)) {
+        return { icon: 'mine', label: '进山洞', type: 'cave', enabled: true };
+      }
+      if (isNearClimb(p.x, p.y)) {
+        return {
+          icon: 'build',
+          label: state.hasClimb ? '上山顶' : '需要登山镐',
+          type: 'climb',
+          enabled: state.hasClimb
+        };
+      }
+      if (isNearDiary(p.x, p.y)) {
+        return { icon: 'take', label: state.diaryRead ? '再看日记' : '翻开日记', type: 'diary', enabled: true };
+      }
+      if (isNearExit(p.x, p.y)) {
+        return { icon: 'take', label: '回海滩', type: 'exit', enabled: true };
+      }
+    }
+
+    // 山洞：电池 / 出洞
+    if (world.scene === 'cave') {
+      if (!state.hasBattery && isNearBattery(p.x, p.y)) {
+        return { icon: 'take', label: '拿电池', type: 'battery', enabled: true };
+      }
+      if (isNearExit(p.x, p.y)) {
+        return { icon: 'take', label: '出山洞', type: 'exit', enabled: true };
+      }
+    }
+
+    // 山顶：信号塔 / 下山
+    if (world.scene === 'summit') {
+      if (isNearTower(p.x, p.y)) {
+        return {
+          icon: 'build',
+          label: state.rescued ? '信号已发出' : '启动信号塔',
+          type: 'tower',
+          enabled: !state.rescued
+        };
+      }
+      if (isNearExit(p.x, p.y)) {
+        return { icon: 'take', label: '下山', type: 'exit', enabled: true };
+      }
+    }
+
+    // 营地空地：走过去直接搭工作台（每个场景都有自己的营地）
+    if (isNearBench(p.x, p.y) && !hasBenchHere()) {
+      const can = state.wood >= WOOD_COST_BENCH && state.stone >= STONE_COST_BENCH;
+      return { icon: 'build', label: '搭工作台', type: 'bench', enabled: can };
+    }
+
     // 篝火：烤鱼
-    if (state.hasCampfire && isNearCampfire(p.x, p.y)) {
+    if (state.hasCampfire && world.scene === 'beach' && isNearCampfire(p.x, p.y)) {
       return {
         icon: 'cook',
         label: '烤鱼',
@@ -3876,10 +6091,10 @@
     }
 
     // 农田
-    if (isNearFarm(p.x, p.y)) {
+    if (world.scene === 'beach' && isNearFarm(p.x, p.y)) {
       const f = state.farm;
       if (!f.built) {
-        const can = state.hasBench &&
+        const can = state.bench.beach &&
                     state.wood >= WOOD_COST_FARM && state.stone >= STONE_COST_FARM;
         return { icon: 'build', label: '建农田', type: 'farm', enabled: can };
       }
@@ -3893,7 +6108,7 @@
     }
 
     // 水边
-    if (isNearPond(p.x, p.y) && !state.fishing.active) {
+    if (world.hasPond && isNearPond(p.x, p.y) && !state.fishing.active) {
       return { icon: 'fish', label: '钓鱼', type: 'fish', enabled: true };
     }
 
@@ -3938,20 +6153,68 @@
       cookFish();
     } else if (c.type === 'farm') {
       farmAction();
+    } else if (c.type === 'bench') {
+      benchAction();
+    } else if (c.type === 'cross') {
+      crossRiver();
+    } else if (c.type === 'climb') {
+      climbToSummit();
+    } else if (c.type === 'cave') {
+      enterCave();
+    } else if (c.type === 'diary') {
+      readDiary();
+    } else if (c.type === 'battery') {
+      takeBattery();
+    } else if (c.type === 'tower') {
+      startTower();
+    } else if (c.type === 'exit') {
+      leaveScene();
     }
     state.actionKey = '';       // 强制下一帧刷新按钮
     syncActionUI();
+    syncCraftUI();
+  }
+
+  /** 走出口：根据当前场景决定回到哪里 */
+  function leaveScene() {
+    if (state.scene === 'forest') {
+      showToast('穿过林子 · 回到海滩');
+      switchScene('beach', 'fromForest');
+    } else if (state.scene === 'cave') {
+      showToast('从山洞里出来');
+      switchScene('forest', 'fromCave');
+    } else if (state.scene === 'summit') {
+      showToast('顺着山路下来');
+      switchScene('forest', 'fromSummit');
+    }
   }
 
   // ==================================================================
   // 9. 事件绑定
   // ==================================================================
   actionBtn.addEventListener('click', doAction);
+
+  // 钓鱼时直接点那条轨道也能收杆，手感更顺
+  fishPanelEl.addEventListener('pointerdown', e => {
+    if (!state.fishing.active) return;
+    e.preventDefault();
+    reel();
+  });
   berryChipEl.addEventListener('click', () => eat('berry'));
   shellChipEl.addEventListener('click', () => eat('shell'));
   fishChipEl.addEventListener('click', () => eat('fish'));
   foodChipEl.addEventListener('click', () => eat('food'));
   cookedChipEl.addEventListener('click', () => eat('cooked'));
+
+  // 背包：点按钮开合，点空白处也能关
+  bagBtn.addEventListener('click', () => {
+    if (bagPanelEl.classList.contains('show')) closeBag();
+    else openBag();
+  });
+  bagCloseEl.addEventListener('click', closeBag);
+  bagPanelEl.addEventListener('click', e => {
+    if (e.target === bagPanelEl) closeBag();
+  });
 
   craftOpenBtn.addEventListener('click', () => {
     if (craftMenuEl.classList.contains('show')) {
@@ -3972,6 +6235,133 @@
 
   // 音效开关
   soundBtn.addEventListener('click', toggleSound);
+
+  // ==================================================================
+  // 开发者测试面板（只为了快速试玩法，正常游玩完全用不到）
+  // ==================================================================
+  function openDevMenu() {
+    sfx('open');
+    syncDevUI();
+    devMenuEl.classList.add('show');
+  }
+
+  function closeDevMenu() {
+    sfx('close');
+    devMenuEl.classList.remove('show');
+  }
+
+  /** 刷新"不会饿"按钮的文字和状态 */
+  function syncDevUI() {
+    const b = devMenuEl.querySelector('[data-dev="unhungry"]');
+    if (b) {
+      b.textContent = '不会饿：' + (state.devUnhungry ? '开' : '关');
+      b.classList.toggle('on', state.devUnhungry);
+    }
+  }
+
+  /** 面板里每个按钮做的事 */
+  function devAction(key) {
+    // 传送类：先切场景，再统一刷新界面
+    if (key.indexOf('go-') === 0) {
+      const id = key.slice(3);
+      closeDevMenu();
+      if (SCENE_LIST.indexOf(id) >= 0) {
+        switchScene(id, 'fromBeach');
+        showToast('开发者：传送到 ' + SCENE_INFO[id].name);
+      }
+      return;
+    }
+
+    switch (key) {
+      case 'wood':
+        state.wood += 10;
+        break;
+      case 'stone':
+        state.stone += 10;
+        break;
+      case 'flint':
+        state.flint += 3;
+        break;
+      case 'vine':
+        state.vine += 5;
+        break;
+      case 'iron':
+        state.iron += 3;
+        break;
+      case 'food':
+        state.berry += 5;
+        state.shell += 5;
+        break;
+      case 'fill':
+        state.hunger = HUNGER_MAX;
+        break;
+      case 'unhungry':
+        state.devUnhungry = !state.devUnhungry;
+        break;
+      case 'bench':
+        // 开发者：把每个营地的工作台都搭好
+        state.bench.beach = true;
+        state.bench.forest = true;
+        state.bench.cave = true;
+        state.bench.summit = true;
+        break;
+      case 'tools':
+        state.hasAxe = true;
+        state.axeUses = AXE_USES;
+        state.hasPick = true;
+        state.pickUses = PICK_USES;
+        state.hasCampfire = true;
+        break;
+      case 'kit':
+        // 一键给齐通关需要的三样东西
+        state.hasBridge = true;
+        state.hasClimb = true;
+        state.hasTorch = true;
+        break;
+      case 'battery':
+        state.hasBattery = true;
+        break;
+      case 'night':
+        state.clock = 0.80;
+        state.duskWarned = false;
+        break;
+      case 'day':
+        state.clock = 0.45;
+        state.duskWarned = false;
+        break;
+      default:
+        break;
+    }
+
+    dayKeyCache = '';        // 顶部时段立刻刷新
+    state.actionKey = '';
+    syncResourceUI();
+    syncHungerUI();
+    syncCraftMenu();
+    syncActionUI();
+    syncCraftUI();
+    syncDayUI();
+    syncDevUI();
+    showToast('开发者：' + key);
+  }
+
+  devBtn.addEventListener('click', () => {
+    if (devMenuEl.classList.contains('show')) closeDevMenu();
+    else openDevMenu();
+  });
+  devCloseEl.addEventListener('click', closeDevMenu);
+  devMenuEl.addEventListener('click', e => {
+    if (e.target === devMenuEl) closeDevMenu();
+  });
+  devMenuEl.querySelectorAll('[data-dev]').forEach(b => {
+    b.addEventListener('click', () => devAction(b.getAttribute('data-dev')));
+  });
+  devResetBtn.addEventListener('click', () => {
+    sfx('click');
+    closeDevMenu();
+    restart();
+    showToast('已清档重开');
+  });
 
   // 制作面板底部的"重新开始"：第一次点变成确认，再点一次才真的重开
   let resetArmed = false;
@@ -4003,14 +6393,16 @@
   });
 
   restartBtn.addEventListener('click', restart);
+  endingRestartBtn.addEventListener('click', restart);
 
   // ==================================================================
   // 10. 重开一局
   // ==================================================================
+  /** 开局站在那里：海滩的沙地上，从海里爬上来的位置 */
   function resetPlayer() {
     const p = state.player;
-    p.x = world.island.cx;
-    p.y = world.island.cy;
+    p.x = world.W * 0.42;
+    p.y = shoreY(0.42, world.H) - world.H * 0.05;
     p.moving = false;
     p.bob = 0;
     p.facing = 1;
@@ -4021,6 +6413,8 @@
     state.wood = 0;
     state.stone = 0;
     state.flint = 0;
+    state.vine = 0;
+    state.iron = 0;
     state.berry = 0;
     state.shell = 0;
     state.fish = 0;
@@ -4029,10 +6423,16 @@
     state.hunger = HUNGER_MAX;
     state.hasAxe = false;
     state.hasPick = false;
-    state.hasBench = false;
+    state.bench = { beach: false, forest: false, cave: false, summit: false };
     state.hasCampfire = false;
+    state.hasBridge = false;
+    state.hasClimb = false;
     state.hasTorch = false;
-    state.hasRod = false;
+    state.hasBattery = false;
+    state.diaryRead = false;
+    state.rescued = false;
+    state.ateOnce = false;
+    state.devUnhungry = false;
     state.axeUses = 0;
     state.pickUses = 0;
     state.rare.active = false;
@@ -4046,8 +6446,11 @@
     state.contact.t = 0;
     state.contact.beat = 0;
     state.fishing.active = false;
-    state.fishing.phase = 'idle';
+    state.fishing.pos = 0.5;
+    state.fishing.dir = 1;
     state.fishing.t = 0;
+    state.fishing.cool = 0;
+    state.fishing.inZone = false;
     state.farm.built = false;
     state.farm.planted = false;
     state.farm.growth = 0;
@@ -4057,25 +6460,39 @@
     state.nextBird = 7;
     state.saveT = 0;
 
-    // 时间回到第一天的清晨
+    // 时间回到第一天的清晨，场景回到海滩
     state.day = 1;
     state.clock = DAY_START;
     state.duskWarned = false;
     dayKeyCache = '';
+
+    state.sceneStore = {};
+    state.scene = 'beach';
+    world.scene = 'beach';
 
     buildEntities();     // 树和石头全部长回来
     layoutWorld();
     resetPlayer();
 
     overlayEl.classList.remove('show');
+    endingEl.classList.remove('show');
     fishPanelEl.classList.remove('show');
+    diaryEl.classList.remove('show');
+    bagPanelEl.classList.remove('show');
     actionBtn.classList.remove('show');
+    craftBtnShown = false;
+    craftOpenBtn.classList.remove('show');
     closeCraftMenu();
     clearSave();         // 旧存档作废，紧接着写一份新的
     syncResourceUI();
     syncHungerUI();
     syncCraftMenu();
     syncActionUI();
+    syncCraftUI();
+    syncDayUI();
+    syncSceneUI();
+    syncDevUI();
+    syncGoalUI();
     saveGame();
   }
 
@@ -4392,9 +6809,26 @@
         playTone({ freq: 300, to: 120, dur: 0.26, type: 'triangle', gain: 0.12 });
         break;
 
-      case 'berry':     // 摘浆果：轻轻一拽
-        playNoise({ freq: 1500, to: 900, dur: 0.09, gain: 0.09, q: 1.4 });
-        playTone({ freq: 900, to: 1200, dur: 0.12, type: 'sine', gain: 0.07, delay: 0.03 });
+      case 'berry':     // 摘浆果：先是一阵拨开叶子的窸窣，然后轻轻一拽
+        playNoise({ freq: 2400, to: 1600, dur: 0.07, gain: 0.07, q: 1.0 });
+        playNoise({ freq: 1500, to: 900, dur: 0.11, gain: 0.11, q: 1.4, delay: 0.05 });
+        playTone({ freq: 880, to: 1240, dur: 0.14, type: 'sine', gain: 0.08, delay: 0.09 });
+        // 果子被拽下来那一下：很轻的一声"啵"
+        playTone({ freq: 420, to: 260, dur: 0.09, type: 'sine', gain: 0.06, delay: 0.13 });
+        break;
+
+      case 'rustle':    // 手在灌木里翻找：两下轻微的摩擦声
+        playNoise({ freq: 3200, to: 2200, dur: 0.06, gain: 0.05, q: 0.9 });
+        playNoise({ freq: 2600, to: 1800, dur: 0.07, gain: 0.04, q: 1.1, delay: 0.07 });
+        break;
+
+      case 'tick':      // 钓鱼指针进绿区：极轻的一声，帮耳朵踩点
+        playTone({ freq: 1600, dur: 0.03, type: 'sine', gain: 0.05 });
+        break;
+
+      case 'scene':     // 换场景：一阵短促的风声
+        playNoise({ freq: 500, to: 1600, dur: 0.34, gain: 0.09, q: 0.7 });
+        playTone({ freq: 392, dur: 0.3, type: 'sine', gain: 0.06, delay: 0.08 });
         break;
 
       case 'shell':     // 捡贝壳：沙沙的一下
@@ -4485,10 +6919,13 @@
       }
 
       const data = {
-        v: 5,
+        v: 8,
+        scene: state.scene,
         wood: state.wood,
         stone: state.stone,
         flint: state.flint,
+        vine: state.vine,
+        iron: state.iron,
         fish: state.fish,
         food: state.food,
         cooked: state.cooked,
@@ -4497,10 +6934,16 @@
         hunger: state.hunger,
         hasAxe: state.hasAxe,
         hasPick: state.hasPick,
-        hasBench: state.hasBench,
+        hasBench: state.bench,
         hasCampfire: state.hasCampfire,
+        hasBridge: state.hasBridge,
+        hasClimb: state.hasClimb,
         hasTorch: state.hasTorch,
-        hasRod: state.hasRod,
+        hasBattery: state.hasBattery,
+        diaryRead: state.diaryRead,
+        rescued: state.rescued,
+        ateOnce: state.ateOnce,
+        devUnhungry: state.devUnhungry,
         axeUses: state.axeUses,
         pickUses: state.pickUses,
         day: state.day,
@@ -4522,8 +6965,9 @@
         // 每棵树 / 石头：a = 是否还立着，r = 还有多少秒长回来
         trees: state.trees.map(t => ({ a: t.alive ? 1 : 0, r: Math.round(t.regrow * 10) / 10 })),
         rocks: state.rocks.map(r => ({ a: r.alive ? 1 : 0, r: Math.round(r.regrow * 10) / 10 })),
-        // 浆果丛：p = 还有没有果子，贝壳：a = 还在不在
+        // 浆果丛 / 藤蔓：p = 还能不能采，贝壳：a = 还在不在
         bushes: state.bushes.map(b => ({ p: b.ripe ? 1 : 0, r: Math.round(b.regrow * 10) / 10 })),
+        vines: state.vines.map(v => ({ p: v.ripe ? 1 : 0, r: Math.round(v.regrow * 10) / 10 })),
         shells: state.shells.map(s => ({ a: s.alive ? 1 : 0, r: Math.round(s.regrow * 10) / 10 })),
         // 位置按屏幕比例存，换设备或旋转屏幕都能落回原来的地方
         px: world.W ? state.player.x / world.W : 0.5,
@@ -4566,11 +7010,23 @@
     } catch (e) {
       return false;
     }
-    if (!data || (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4 && data.v !== 5)) return false;
+    if (!data || [1, 2, 3, 4, 5, 6, 7, 8].indexOf(data.v) < 0) return false;
+
+    // 先决定回到哪个场景，再按那个场景摆地形和资源
+    const scene = (SCENE_LIST.indexOf(data.scene) >= 0) ? data.scene : 'beach';
+    state.scene = scene;
+    world.scene = scene;
+    state.sceneStore = {};
+
+    // 场景定了才能建资源、算位置（后面还原位置时要用到 world.W / world.H）
+    buildEntities();
+    layoutWorld();
 
     state.wood = data.wood || 0;
     state.stone = data.stone || 0;
     state.flint = data.flint || 0;
+    state.vine = data.vine || 0;
+    state.iron = data.iron || 0;
     state.berry = data.berry || 0;
     state.shell = data.shell || 0;
     state.fish = data.fish || 0;
@@ -4579,10 +7035,25 @@
     state.hunger = typeof data.hunger === 'number' ? data.hunger : HUNGER_MAX;
     state.hasAxe = !!data.hasAxe;
     state.hasPick = !!data.hasPick;
-    state.hasBench = !!data.hasBench;
+    // 工作台：新存档是每个场景一个布尔值，旧存档只有一个总的 true / false
+    if (data.hasBench && typeof data.hasBench === 'object') {
+      state.bench.beach = !!data.hasBench.beach;
+      state.bench.forest = !!data.hasBench.forest;
+      state.bench.cave = !!data.hasBench.cave;
+      state.bench.summit = !!data.hasBench.summit;
+    } else if (data.hasBench) {
+      // 老存档：当时只有海滩有工作台
+      state.bench.beach = true;
+    }
     state.hasCampfire = !!data.hasCampfire;
+    state.hasBridge = !!data.hasBridge;
+    state.hasClimb = !!data.hasClimb;
     state.hasTorch = !!data.hasTorch;
-    state.hasRod = !!data.hasRod;
+    state.hasBattery = !!data.hasBattery;
+    state.diaryRead = !!data.diaryRead;
+    state.rescued = !!data.rescued;
+    state.ateOnce = !!data.ateOnce;
+    state.devUnhungry = !!data.devUnhungry;
 
     // 工具耐用度：旧存档没有这个字段，就当成刚做好的满耐久
     state.axeUses = typeof data.axeUses === 'number' ? data.axeUses : AXE_USES;
@@ -4621,7 +7092,7 @@
     restoreEntities(state.rocks, data.rocks, REGROW_ROCK);
     restoreEntities(state.shells, data.shells, REGROW_SHELL);
 
-    // 浆果丛：存的是"有没有果子"，不是"还在不在"
+    // 浆果丛 / 藤蔓：存的是"还能不能采"，不是"还在不在"
     if (Array.isArray(data.bushes)) {
       state.bushes.forEach((b, i) => {
         const d = data.bushes[i];
@@ -4631,8 +7102,17 @@
         }
       });
     }
+    if (Array.isArray(data.vines)) {
+      state.vines.forEach((v, i) => {
+        const d = data.vines[i];
+        if (d && typeof d === 'object') {
+          v.ripe = !!d.p;
+          v.regrow = v.ripe ? 0 : Math.max(0, Math.min(REGROW_VINE, d.r || REGROW_VINE));
+        }
+      });
+    }
 
-    // 还原角色位置，落进水里或海里就留在岛心
+    // 还原角色位置，落进水里或海里就留在场景中间
     const px = (data.px || 0.5) * world.W;
     const py = (data.py || 0.5) * world.H;
     if (isWalkable(px, py)) {
@@ -4680,8 +7160,15 @@
     loadSoundPref();
     syncSoundUI();
 
-    // 有存档就接着上次玩
-    if (loadGame()) {
+    // 有存档就接着上次玩（loadGame 会自己把场景和资源恢复好）
+    const resumed = loadGame();
+    if (!resumed) {
+      // 开场：故事从南边的沙滩开始
+      resetPlayer();
+      setTimeout(() => {
+        showToast('你在沙滩上醒来 · 先找点吃的，再想办法离开这里');
+      }, 900);
+    } else {
       showToast('已继续上次的进度');
     }
 
@@ -4689,7 +7176,11 @@
     syncHungerUI();
     syncCraftMenu();
     syncActionUI();
+    syncCraftUI();
     syncDayUI();
+    syncSceneUI();
+    syncDevUI();
+    syncGoalUI();
 
     // 第一次摸屏幕时解锁音频（iOS 不允许页面自己发声）
     wrap.addEventListener('pointerdown', unlockAudio, { once: true });
@@ -4704,7 +7195,7 @@
     });
     window.addEventListener('pagehide', saveGame);
 
-    setTimeout(hideHint, 7000);   // 提示文字过几秒自己淡出
+    setTimeout(hideHint, 8000);   // 提示文字过几秒自己淡出
 
     requestAnimationFrame(loop);
   }
